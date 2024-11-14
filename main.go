@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	firebase "firebase.google.com/go/v4"
@@ -13,10 +12,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
-	"github.com/pkg/errors"
+	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
@@ -25,73 +23,8 @@ import (
 var (
 	firebaseApp  *firebase.App
 	firebaseAuth *auth.Client
+	queries      *repository.Queries
 )
-
-func authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		bearerToken := req.Header.Get("Authorization")
-		if bearerToken == "" || strings.Contains(bearerToken, "Bearer") == false {
-			err := errors.New("authenticate(): invalid authorization header")
-			log.Ctx(req.Context()).Error().Err(err).Msg("")
-			http.Error(res, err.Error(), http.StatusUnauthorized)
-			return
-		}
-
-		token, err := firebaseAuth.VerifyIDToken(context.Background(), strings.TrimPrefix(bearerToken, "Bearer "))
-		if err != nil {
-			log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "authenticate()")).Msg("invalid id token")
-			http.Error(res, err.Error(), http.StatusUnauthorized)
-			return
-		}
-
-		ctx := context.WithValue(req.Context(), "userID", token.UID)
-		next.ServeHTTP(res, req.WithContext(ctx))
-	})
-}
-
-type loggerResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (res *loggerResponseWriter) WriteHeader(statusCode int) {
-	res.statusCode = statusCode
-	res.ResponseWriter.WriteHeader(statusCode)
-}
-
-func logger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		lres := loggerResponseWriter{res, http.StatusOK}
-		start := time.Now()
-
-		log := log.With().Str("req_id", uuid.New().String()).Logger()
-		ctx := log.WithContext(req.Context())
-
-		hostname, err := os.Hostname()
-		if err != nil {
-			hostname = req.Host
-			log.Error().Err(errors.Wrap(err, "logger()")).Msg("failed to get hostname for logger")
-		}
-
-		log.Info().
-			Str("method", req.Method).
-			Str("path", req.URL.Path).
-			Str("query", req.URL.RawQuery).
-			Str("client_ip", req.RemoteAddr).
-			Str("user_agent", req.UserAgent()).
-			Str("hostname", hostname).
-			Msg("request received")
-
-		defer func() {
-			log.Info().
-				Int("status_code", lres.statusCode).
-				Dur("res_time", time.Since(start)).
-				Msg("request completed")
-		}()
-
-		next.ServeHTTP(&lres, req.WithContext(ctx))
-	})
-}
 
 func main() {
 	err := godotenv.Load()
@@ -108,6 +41,7 @@ func main() {
 		log.Fatal().Stack().Err(err).Msg("failed to establish a connection to a PostgreSQL server with a connection string")
 	}
 	defer conn.Close(ctx)
+	queries = repository.New(conn)
 
 	firebaseApp, err = firebase.NewApp(ctx, nil)
 	if err != nil {
@@ -136,6 +70,8 @@ func main() {
 	router.Use(cors.Handler(options))
 	router.Use(middleware.AllowContentType("application/json"))
 	router.Use(middleware.Heartbeat("/ping"))
+
+	router.Post("/api/login", loginHandler)
 
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
