@@ -12,18 +12,22 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
+	"github.com/go-redis/redis"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
+	"github.com/twilio/twilio-go"
 )
 
 var (
 	firebaseApp  *firebase.App
 	firebaseAuth *auth.Client
 	queries      *repository.Queries
+	redisClient  *redis.Client
+	twilioClient *twilio.RestClient
 )
 
 func main() {
@@ -53,6 +57,20 @@ func main() {
 		log.Fatal().Stack().Err(err).Msg("failed to initialize firebase auth")
 	}
 
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     os.Getenv("REDIS_URL"),
+		Password: "",
+		DB:       0,
+	})
+
+	accountSid := os.Getenv("TWILIO_ACCOUNT_SID")
+	authToken := os.Getenv("TWILIO_AUTH_TOKEN")
+
+	twilioClient = twilio.NewRestClientWithParams(twilio.ClientParams{
+		Username: accountSid,
+		Password: authToken,
+	})
+
 	router := chi.NewRouter()
 	router.Use(middleware.CleanPath)
 	router.Use(middleware.RealIP)
@@ -72,12 +90,11 @@ func main() {
 	router.Use(middleware.Heartbeat("/ping"))
 
 	router.Post("/api/login", loginHandler)
-
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
-		r.Get("/hello", func(res http.ResponseWriter, req *http.Request) {
-			res.Write([]byte("Hello World"))
-		})
+
+		r.Post("/api/users/{userID}/otp/generation", generateOTPHandler)
+		r.Post("/api/users/{userID}/otp/verification", verifyOTPHandler)
 	})
 
 	http.ListenAndServe(":80", router)
