@@ -63,12 +63,12 @@ func main() {
 		DB:       0,
 	})
 
-	accountSid := os.Getenv("TWILIO_ACCOUNT_SID")
-	authToken := os.Getenv("TWILIO_AUTH_TOKEN")
+	ACCOUNT_SID := os.Getenv("TWILIO_ACCOUNT_SID")
+	AUTH_TOKEN := os.Getenv("TWILIO_AUTH_TOKEN")
 
 	twilioClient = twilio.NewRestClientWithParams(twilio.ClientParams{
-		Username: accountSid,
-		Password: authToken,
+		Username: ACCOUNT_SID,
+		Password: AUTH_TOKEN,
 	})
 
 	router := chi.NewRouter()
@@ -95,6 +95,7 @@ func main() {
 
 		r.Post("/api/users/{userID}/otp/generation", generateOTPHandler)
 		r.Post("/api/users/{userID}/otp/verification", verifyOTPHandler)
+		r.Post("/order", createOrderHandler)
 	})
 
 	http.ListenAndServe(":80", router)
