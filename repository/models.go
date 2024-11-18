@@ -96,10 +96,17 @@ func (ns NullPaymentStatus) Value() (driver.Value, error) {
 	return string(ns.PaymentStatus), nil
 }
 
+type Coupon struct {
+	Code      string
+	Quota     int16
+	CreatedAt pgtype.Timestamptz
+}
+
 type Order struct {
 	ID            pgtype.UUID
 	UserID        string
 	TransactionID string
+	CouponCode    pgtype.Text
 	Amount        int32
 	PaymentMethod string
 	PaymentStatus PaymentStatus

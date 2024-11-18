@@ -16,18 +16,34 @@ CREATE TABLE "user" (
   PRIMARY KEY (id)
 );
 
+CREATE TABLE coupon (
+  code VARCHAR(255),
+  quota SMALLINT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  
+  PRIMARY KEY (code)
+);
+
 CREATE TABLE "order" (
   id UUID DEFAULT gen_random_uuid(),
   user_id VARCHAR(255) NOT NULL,
   transaction_id VARCHAR(255) NOT NULL,
+  coupon_code VARCHAR(255),
   amount INT NOT NULL,
   payment_method VARCHAR(255) NOT NULL,
   payment_status payment_status DEFAULT 'unpaid' NOT NULL,
 
   PRIMARY KEY (id),
+
   CONSTRAINT fk_user
     FOREIGN KEY (user_id)
     REFERENCES "user" (id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+
+  CONSTRAINT fk_coupon
+    FOREIGN KEY (coupon_code)
+    REFERENCES coupon (code)
     ON UPDATE CASCADE
     ON DELETE CASCADE
 );
