@@ -102,7 +102,7 @@ type Order struct {
 	TransactionID string
 	Amount        int32
 	PaymentMethod string
-	PaymentStatus NullPaymentStatus
+	PaymentStatus PaymentStatus
 }
 
 type User struct {
@@ -110,8 +110,8 @@ type User struct {
 	Name          string
 	Email         string
 	PhoneNumber   pgtype.Text
-	PhoneVerified pgtype.Bool
-	AccountType   NullAccountType
+	PhoneVerified bool
+	AccountType   AccountType
 	UpgradedAt    pgtype.Timestamptz
 	ExpiresAt     pgtype.Timestamptz
 	CreatedAt     pgtype.Timestamptz

@@ -7,6 +7,8 @@ package repository
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :exec
@@ -44,4 +46,41 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const getUserByPhoneNumber = `-- name: GetUserByPhoneNumber :one
+SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expires_at, created_at, deleted_at FROM "user" WHERE phone_number = $1
+`
+
+func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByPhoneNumber, phoneNumber)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.PhoneNumber,
+		&i.PhoneVerified,
+		&i.AccountType,
+		&i.UpgradedAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateUserPhoneNumber = `-- name: UpdateUserPhoneNumber :exec
+UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1
+`
+
+type UpdateUserPhoneNumberParams struct {
+	ID            string
+	PhoneNumber   pgtype.Text
+	PhoneVerified bool
+}
+
+func (q *Queries) UpdateUserPhoneNumber(ctx context.Context, arg UpdateUserPhoneNumberParams) error {
+	_, err := q.db.Exec(ctx, updateUserPhoneNumber, arg.ID, arg.PhoneNumber, arg.PhoneVerified)
+	return err
 }
