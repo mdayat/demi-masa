@@ -63,7 +63,6 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 			ID:    token.UID,
 			Name:  idTokenClaims.Name,
 			Email: idTokenClaims.Email,
-			Role:  repository.UserRoleUser,
 		}
 
 		err = queries.CreateUser(ctx, user)

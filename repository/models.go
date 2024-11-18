@@ -11,54 +11,109 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type UserRole string
+type AccountType string
 
 const (
-	UserRoleUser       UserRole = "user"
-	UserRoleInfluencer UserRole = "influencer"
+	AccountTypeFree    AccountType = "free"
+	AccountTypePremium AccountType = "premium"
 )
 
-func (e *UserRole) Scan(src interface{}) error {
+func (e *AccountType) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = UserRole(s)
+		*e = AccountType(s)
 	case string:
-		*e = UserRole(s)
+		*e = AccountType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for UserRole: %T", src)
+		return fmt.Errorf("unsupported scan type for AccountType: %T", src)
 	}
 	return nil
 }
 
-type NullUserRole struct {
-	UserRole UserRole
-	Valid    bool // Valid is true if UserRole is not NULL
+type NullAccountType struct {
+	AccountType AccountType
+	Valid       bool // Valid is true if AccountType is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullUserRole) Scan(value interface{}) error {
+func (ns *NullAccountType) Scan(value interface{}) error {
 	if value == nil {
-		ns.UserRole, ns.Valid = "", false
+		ns.AccountType, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.UserRole.Scan(value)
+	return ns.AccountType.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullUserRole) Value() (driver.Value, error) {
+func (ns NullAccountType) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.UserRole), nil
+	return string(ns.AccountType), nil
+}
+
+type PaymentStatus string
+
+const (
+	PaymentStatusUnpaid  PaymentStatus = "unpaid"
+	PaymentStatusSuccess PaymentStatus = "success"
+	PaymentStatusFailed  PaymentStatus = "failed"
+)
+
+func (e *PaymentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PaymentStatus(s)
+	case string:
+		*e = PaymentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PaymentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPaymentStatus struct {
+	PaymentStatus PaymentStatus
+	Valid         bool // Valid is true if PaymentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPaymentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PaymentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PaymentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPaymentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PaymentStatus), nil
+}
+
+type Order struct {
+	ID            pgtype.UUID
+	UserID        string
+	TransactionID string
+	Amount        int32
+	PaymentMethod string
+	PaymentStatus NullPaymentStatus
 }
 
 type User struct {
-	ID          string
-	Name        string
-	Email       string
-	PhoneNumber pgtype.Text
-	Role        UserRole
-	CreatedAt   pgtype.Timestamptz
-	DeletedAt   pgtype.Timestamptz
+	ID            string
+	Name          string
+	Email         string
+	PhoneNumber   pgtype.Text
+	PhoneVerified pgtype.Bool
+	AccountType   NullAccountType
+	UpgradedAt    pgtype.Timestamptz
+	ExpiresAt     pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	DeletedAt     pgtype.Timestamptz
 }

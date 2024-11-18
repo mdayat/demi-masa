@@ -10,28 +10,22 @@ import (
 )
 
 const createUser = `-- name: CreateUser :exec
-INSERT INTO "user" (id, name, email, role) VALUES ($1, $2, $3, $4)
+INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)
 `
 
 type CreateUserParams struct {
 	ID    string
 	Name  string
 	Email string
-	Role  UserRole
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
-	_, err := q.db.Exec(ctx, createUser,
-		arg.ID,
-		arg.Name,
-		arg.Email,
-		arg.Role,
-	)
+	_, err := q.db.Exec(ctx, createUser, arg.ID, arg.Name, arg.Email)
 	return err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, phone_number, role, created_at, deleted_at FROM "user" WHERE id = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expires_at, created_at, deleted_at FROM "user" WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -42,7 +36,10 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.Name,
 		&i.Email,
 		&i.PhoneNumber,
-		&i.Role,
+		&i.PhoneVerified,
+		&i.AccountType,
+		&i.UpgradedAt,
+		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
