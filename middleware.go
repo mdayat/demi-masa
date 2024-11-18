@@ -18,14 +18,14 @@ func authenticate(next http.Handler) http.Handler {
 		if bearerToken == "" || strings.Contains(bearerToken, "Bearer") == false {
 			err := errors.New("authenticate(): invalid authorization header")
 			log.Ctx(req.Context()).Error().Err(err).Msg("")
-			http.Error(res, err.Error(), http.StatusUnauthorized)
+			http.Error(res, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
 		token, err := firebaseAuth.VerifyIDToken(context.Background(), strings.TrimPrefix(bearerToken, "Bearer "))
 		if err != nil {
 			log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "authenticate()")).Msg("invalid id token")
-			http.Error(res, err.Error(), http.StatusUnauthorized)
+			http.Error(res, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
