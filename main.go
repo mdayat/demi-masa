@@ -89,12 +89,12 @@ func main() {
 	router.Use(middleware.AllowContentType("application/json"))
 	router.Use(middleware.Heartbeat("/ping"))
 
-	router.Post("/api/login", loginHandler)
+	router.Post("/login", loginHandler)
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
 
-		r.Post("/api/users/{userID}/otp/generation", generateOTPHandler)
-		r.Post("/api/users/{userID}/otp/verification", verifyOTPHandler)
+		r.Post("/otp/generation", generateOTPHandler)
+		r.Post("/otp/verification", verifyOTPHandler)
 		r.Post("/order", createOrderHandler)
 	})
 
