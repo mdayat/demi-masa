@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
 	"github.com/go-redis/redis"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/rs/zerolog"
@@ -28,6 +28,7 @@ var (
 	queries      *repository.Queries
 	redisClient  *redis.Client
 	twilioClient *twilio.RestClient
+	db           *pgxpool.Pool
 )
 
 func main() {
@@ -40,12 +41,12 @@ func main() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	db, err = pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal().Stack().Err(err).Msg("failed to establish a connection to a PostgreSQL server with a connection string")
 	}
-	defer conn.Close(ctx)
-	queries = repository.New(conn)
+	defer db.Close()
+	queries = repository.New(db)
 
 	firebaseApp, err = firebase.NewApp(ctx, nil)
 	if err != nil {
@@ -90,6 +91,8 @@ func main() {
 	router.Use(middleware.Heartbeat("/ping"))
 
 	router.Post("/login", loginHandler)
+	router.Post("/order/callback", webhookHandler)
+
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
 
