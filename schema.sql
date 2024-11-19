@@ -9,7 +9,7 @@ CREATE TABLE "user" (
   phone_verified BOOLEAN DEFAULT FALSE NOT NULL,
   account_type account_type DEFAULT 'free' NOT NULL,
   upgraded_at TIMESTAMPTZ,
-  expires_at TIMESTAMPTZ,
+  expired_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   deleted_at TIMESTAMPTZ,
 
@@ -25,11 +25,12 @@ CREATE TABLE coupon (
 );
 
 CREATE TABLE "order" (
-  id UUID DEFAULT gen_random_uuid(),
+  id UUID,
   user_id VARCHAR(255) NOT NULL,
   transaction_id VARCHAR(255) NOT NULL,
   coupon_code VARCHAR(255),
   amount INT NOT NULL,
+  subscription_duration INT NOT NULL,
   payment_method VARCHAR(255) NOT NULL,
   payment_status payment_status DEFAULT 'unpaid' NOT NULL,
 

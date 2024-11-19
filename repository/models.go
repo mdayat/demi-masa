@@ -103,13 +103,14 @@ type Coupon struct {
 }
 
 type Order struct {
-	ID            pgtype.UUID
-	UserID        string
-	TransactionID string
-	CouponCode    pgtype.Text
-	Amount        int32
-	PaymentMethod string
-	PaymentStatus PaymentStatus
+	ID                   pgtype.UUID
+	UserID               string
+	TransactionID        string
+	CouponCode           pgtype.Text
+	Amount               int32
+	SubscriptionDuration int32
+	PaymentMethod        string
+	PaymentStatus        PaymentStatus
 }
 
 type User struct {
@@ -120,7 +121,7 @@ type User struct {
 	PhoneVerified bool
 	AccountType   AccountType
 	UpgradedAt    pgtype.Timestamptz
-	ExpiresAt     pgtype.Timestamptz
+	ExpiredAt     pgtype.Timestamptz
 	CreatedAt     pgtype.Timestamptz
 	DeletedAt     pgtype.Timestamptz
 }

@@ -11,6 +11,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createOrder = `-- name: CreateOrder :exec
+INSERT INTO "order" (id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type CreateOrderParams struct {
+	ID                   pgtype.UUID
+	UserID               string
+	TransactionID        string
+	CouponCode           pgtype.Text
+	Amount               int32
+	SubscriptionDuration int32
+	PaymentMethod        string
+}
+
+func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) error {
+	_, err := q.db.Exec(ctx, createOrder,
+		arg.ID,
+		arg.UserID,
+		arg.TransactionID,
+		arg.CouponCode,
+		arg.Amount,
+		arg.SubscriptionDuration,
+		arg.PaymentMethod,
+	)
+	return err
+}
+
 const createUser = `-- name: CreateUser :exec
 INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)
 `
@@ -26,8 +54,65 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	return err
 }
 
+const decrementCouponQuota = `-- name: DecrementCouponQuota :exec
+UPDATE coupon SET quota = quota - 1 WHERE code = $1 AND quota > 0
+`
+
+func (q *Queries) DecrementCouponQuota(ctx context.Context, code string) error {
+	_, err := q.db.Exec(ctx, decrementCouponQuota, code)
+	return err
+}
+
+const getCoupon = `-- name: GetCoupon :one
+SELECT code, quota, created_at FROM coupon WHERE code = $1
+`
+
+func (q *Queries) GetCoupon(ctx context.Context, code string) (Coupon, error) {
+	row := q.db.QueryRow(ctx, getCoupon, code)
+	var i Coupon
+	err := row.Scan(&i.Code, &i.Quota, &i.CreatedAt)
+	return i, err
+}
+
+const getOrderByIDWithUser = `-- name: GetOrderByIDWithUser :one
+SELECT 
+  o.id AS order_id,
+  o.payment_status,
+  o.subscription_duration,
+  u.id AS user_id,
+  u.account_type,
+  u.upgraded_at,
+  u.expired_at
+FROM "order" o JOIN "user" u ON o.user_id = u.id WHERE o.id = $1
+`
+
+type GetOrderByIDWithUserRow struct {
+	OrderID              pgtype.UUID
+	PaymentStatus        PaymentStatus
+	SubscriptionDuration int32
+	UserID               string
+	AccountType          AccountType
+	UpgradedAt           pgtype.Timestamptz
+	ExpiredAt            pgtype.Timestamptz
+}
+
+func (q *Queries) GetOrderByIDWithUser(ctx context.Context, id pgtype.UUID) (GetOrderByIDWithUserRow, error) {
+	row := q.db.QueryRow(ctx, getOrderByIDWithUser, id)
+	var i GetOrderByIDWithUserRow
+	err := row.Scan(
+		&i.OrderID,
+		&i.PaymentStatus,
+		&i.SubscriptionDuration,
+		&i.UserID,
+		&i.AccountType,
+		&i.UpgradedAt,
+		&i.ExpiredAt,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expires_at, created_at, deleted_at FROM "user" WHERE id = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at, deleted_at FROM "user" WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -41,7 +126,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.PhoneVerified,
 		&i.AccountType,
 		&i.UpgradedAt,
-		&i.ExpiresAt,
+		&i.ExpiredAt,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
@@ -49,7 +134,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 }
 
 const getUserByPhoneNumber = `-- name: GetUserByPhoneNumber :one
-SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expires_at, created_at, deleted_at FROM "user" WHERE phone_number = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at, deleted_at FROM "user" WHERE phone_number = $1
 `
 
 func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.Text) (User, error) {
@@ -63,11 +148,25 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 		&i.PhoneVerified,
 		&i.AccountType,
 		&i.UpgradedAt,
-		&i.ExpiresAt,
+		&i.ExpiredAt,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const updateOrderStatus = `-- name: UpdateOrderStatus :exec
+UPDATE "order" SET payment_status = $2 WHERE id = $1
+`
+
+type UpdateOrderStatusParams struct {
+	ID            pgtype.UUID
+	PaymentStatus PaymentStatus
+}
+
+func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
+	_, err := q.db.Exec(ctx, updateOrderStatus, arg.ID, arg.PaymentStatus)
+	return err
 }
 
 const updateUserPhoneNumber = `-- name: UpdateUserPhoneNumber :exec
@@ -82,5 +181,27 @@ type UpdateUserPhoneNumberParams struct {
 
 func (q *Queries) UpdateUserPhoneNumber(ctx context.Context, arg UpdateUserPhoneNumberParams) error {
 	_, err := q.db.Exec(ctx, updateUserPhoneNumber, arg.ID, arg.PhoneNumber, arg.PhoneVerified)
+	return err
+}
+
+const updateUserSubscription = `-- name: UpdateUserSubscription :exec
+UPDATE "user" SET account_type = $2, upgraded_at = $3, expired_at = $4
+WHERE id = $1
+`
+
+type UpdateUserSubscriptionParams struct {
+	ID          string
+	AccountType AccountType
+	UpgradedAt  pgtype.Timestamptz
+	ExpiredAt   pgtype.Timestamptz
+}
+
+func (q *Queries) UpdateUserSubscription(ctx context.Context, arg UpdateUserSubscriptionParams) error {
+	_, err := q.db.Exec(ctx, updateUserSubscription,
+		arg.ID,
+		arg.AccountType,
+		arg.UpgradedAt,
+		arg.ExpiredAt,
+	)
 	return err
 }
