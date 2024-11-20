@@ -53,7 +53,7 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := context.Background()
-	_, err = queries.GetUserByID(ctx, token.UID)
+	user, err := queries.GetUserByID(ctx, token.UID)
 	if err != nil && errors.Is(err, pgx.ErrNoRows) == false {
 		logWithCtx.Error().Err(err).Str("user_id", token.UID).Msg("failed to get user by id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -76,13 +76,33 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		logWithCtx.Info().Str("user_id", token.UID).Msg("successfully created new user")
 
+		respBody := struct {
+			PhoneVerified bool `json:"phone_verified"`
+		}{
+			PhoneVerified: false,
+		}
+
 		res.Header().Set("Location", fmt.Sprintf("/users/%s", user.ID))
-		res.WriteHeader(http.StatusCreated)
+		err = sendJSONSuccessResponse(res, SuccessResponseParams{StatusCode: http.StatusCreated, Data: respBody})
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to send json success response")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
 
 	logWithCtx.Info().Str("user_id", token.UID).Msg("successfully signed in")
-	res.WriteHeader(http.StatusOK)
+	respBody := struct {
+		PhoneVerified bool `json:"phone_verified"`
+	}{
+		PhoneVerified: user.PhoneVerified,
+	}
+
+	err = sendJSONSuccessResponse(res, SuccessResponseParams{StatusCode: http.StatusOK, Data: respBody})
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to send json success response")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
 }
 
 var OTP_GEN_LIMIT = 3

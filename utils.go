@@ -3,9 +3,22 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/pkg/errors"
 )
+
+type SuccessResponseParams struct {
+	StatusCode int
+	Data       interface{}
+}
+
+func sendJSONSuccessResponse(res http.ResponseWriter, params SuccessResponseParams) error {
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(params.StatusCode)
+	err := json.NewEncoder(res).Encode(&params.Data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 type ErrorResponseParams struct {
 	StatusCode int
@@ -23,7 +36,7 @@ func sendJSONErrorResponse(res http.ResponseWriter, params ErrorResponseParams) 
 	res.WriteHeader(params.StatusCode)
 	err := json.NewEncoder(res).Encode(&message)
 	if err != nil {
-		return errors.Wrap(err, "sendJSONErrorResponse(): failed to encode JSON")
+		return err
 	}
 	return nil
 }
