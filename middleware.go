@@ -16,15 +16,14 @@ func authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		bearerToken := req.Header.Get("Authorization")
 		if bearerToken == "" || strings.Contains(bearerToken, "Bearer") == false {
-			err := errors.New("authenticate(): invalid authorization header")
-			log.Ctx(req.Context()).Error().Err(err).Msg("")
+			log.Ctx(req.Context()).Error().Err(errors.New("invalid authorization header")).Msg("")
 			http.Error(res, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
 		token, err := firebaseAuth.VerifyIDToken(context.Background(), strings.TrimPrefix(bearerToken, "Bearer "))
 		if err != nil {
-			log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "authenticate()")).Msg("invalid id token")
+			log.Ctx(req.Context()).Error().Err(err).Msg("invalid id token")
 			http.Error(res, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
@@ -55,7 +54,7 @@ func logger(next http.Handler) http.Handler {
 		hostname, err := os.Hostname()
 		if err != nil {
 			hostname = req.Host
-			log.Error().Err(errors.Wrap(err, "logger()")).Msg("failed to get hostname for logger")
+			log.Error().Err(err).Msg("failed to get hostname")
 		}
 
 		log.Info().

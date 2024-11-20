@@ -24,29 +24,30 @@ type IDTokenClaims struct {
 }
 
 func loginHandler(res http.ResponseWriter, req *http.Request) {
+	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	body := struct {
 		IDToken string `json:"id_token"`
 	}{}
 
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "loginHandler()")).Msg("invalid json body")
+		logWithCtx.Error().Err(err).Msg("invalid json body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	token, err := firebaseAuth.VerifyIDToken(context.Background(), body.IDToken)
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "loginHandler()")).Msg("invalid id token")
+		logWithCtx.Error().Err(err).Msg("invalid id token")
 		http.Error(res, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
-	log.Ctx(req.Context()).Info().Msg("successfully verified id token")
+	logWithCtx.Info().Msg("successfully verified id token")
 
 	var idTokenClaims IDTokenClaims
 	err = mapstructure.Decode(token.Claims, &idTokenClaims)
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "loginHandler()")).Msg("failed to convert map of id token claims to struct")
+		logWithCtx.Error().Err(err).Msg("failed to convert map of id token claims to struct")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -54,11 +55,11 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 	ctx := context.Background()
 	_, err = queries.GetUserByID(ctx, token.UID)
 	if err != nil && errors.Is(err, pgx.ErrNoRows) == false {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "loginHandler()")).Msg("failed to get user by UID")
+		logWithCtx.Error().Err(err).Str("user_id", token.UID).Msg("failed to get user by id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Ctx(req.Context()).Info().Str("user_id", token.UID).Msg("successfully get user by UID")
+	logWithCtx.Info().Str("user_id", token.UID).Msg("successfully get user by id")
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		user := repository.CreateUserParams{
@@ -69,18 +70,18 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 
 		err = queries.CreateUser(ctx, user)
 		if err != nil {
-			log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "loginHandler()")).Msg("failed to create new user")
+			logWithCtx.Error().Err(err).Msg("failed to create new user")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		log.Ctx(req.Context()).Info().Str("user_id", token.UID).Msg("successfully created new user")
+		logWithCtx.Info().Str("user_id", token.UID).Msg("successfully created new user")
 
 		res.Header().Set("Location", fmt.Sprintf("/users/%s", user.ID))
 		res.WriteHeader(http.StatusCreated)
 		return
 	}
 
-	log.Ctx(req.Context()).Info().Str("user_id", token.UID).Msg("successfully signed in")
+	logWithCtx.Info().Str("user_id", token.UID).Msg("successfully signed in")
 	res.WriteHeader(http.StatusOK)
 }
 
@@ -95,13 +96,14 @@ func generateOTP() string {
 }
 
 func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
+	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	body := struct {
 		PhoneNumber string `json:"phone_number"`
 	}{}
 
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("invalid json body")
+		logWithCtx.Error().Err(err).Msg("invalid json body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -109,14 +111,18 @@ func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
 	ctx := context.Background()
 	user, err := queries.GetUserByPhoneNumber(ctx, pgtype.Text{String: body.PhoneNumber, Valid: true})
 	if err != nil && errors.Is(err, pgx.ErrNoRows) == false {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("failed to get user by phone number")
+		logWithCtx.Error().Err(err).Str("phone_number", body.PhoneNumber).Msg("failed to get user by phone number")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	if user.PhoneNumber.String == body.PhoneNumber {
-		log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("phone number already used")
-		http.Error(res, http.StatusText(http.StatusConflict), http.StatusConflict)
+	if body.PhoneNumber == user.PhoneNumber.String {
+		logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("phone number already used")
+		err = sendJSONErrorResponse(res, ErrorResponseParams{StatusCode: http.StatusConflict, Message: "Nomor handphone telah digunakan"})
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to send json error response")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -126,7 +132,7 @@ func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
 
 	otp, err := redisClient.Get(otpKey).Result()
 	if err != nil && err != redis.Nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("failed to get otp")
+		logWithCtx.Error().Err(err).Msg("failed to get otp")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -134,27 +140,33 @@ func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
 	if otp != "" {
 		remainingTime, err := redisClient.TTL(otpKey).Result()
 		if err != nil {
-			log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("failed to get the remaining time of otp")
+			logWithCtx.Error().Err(err).Msg("failed to get the remaining time of otp")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("otp already exist")
+		logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("otp already exist")
 		res.Header().Set("Retry-After", fmt.Sprintf("%d", int(remainingTime.Seconds())))
-		http.Error(res, http.StatusText(http.StatusConflict), http.StatusConflict)
+
+		message := fmt.Sprintf("Kode OTP telah dikirim. Tunggu %d detik agar dapat mengirim ulang kode OTP", int(remainingTime.Seconds()))
+		err = sendJSONErrorResponse(res, ErrorResponseParams{StatusCode: http.StatusConflict, Message: message})
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to send json error response")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
 
 	err = redisClient.SetNX(otpGenLimitKey, 0, OTP_GEN_LIMIT_DURATION).Err()
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("failed to set otp generation limit")
+		logWithCtx.Error().Err(err).Msg("failed to set otp generation limit")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	genCount, err := redisClient.Incr(otpGenLimitKey).Result()
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("failed to increment otp generation limit")
+		log.Ctx(req.Context()).Error().Err(err).Msg("failed to increment otp generation limit")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -162,19 +174,24 @@ func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
 	if genCount > int64(OTP_GEN_LIMIT) {
 		remainingTime, err := redisClient.TTL(otpGenLimitKey).Result()
 		if err != nil {
-			log.
-				Ctx(req.Context()).
-				Error().
-				Err(errors.Wrap(err, "generateOTPHandler()")).
-				Msg("failed to get the remaining time of otp generation limit")
-
+			logWithCtx.Error().Err(err).Msg("failed to get the remaining time of otp generation limit")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("otp generation already reached its limit")
+		logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("otp generation already reached its limit")
 		res.Header().Set("Retry-After", fmt.Sprintf("%d", int(remainingTime.Seconds())))
-		http.Error(res, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+
+		message := fmt.Sprintf(
+			"Pengiriman kode OTP telah mencapai batas untuk hari ini. Tunggu %d detik agar dapat mengirim ulang kode OTP",
+			int(remainingTime.Seconds()),
+		)
+
+		err = sendJSONErrorResponse(res, ErrorResponseParams{StatusCode: http.StatusTooManyRequests, Message: message})
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to send json error response")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -184,11 +201,11 @@ func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
 	tx.Set(otpSubmissionLimitKey, 0, OTP_DURATION)
 	_, err = tx.Exec()
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("failed to create otp")
+		logWithCtx.Error().Err(err).Msg("failed to create otp")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("successfully created otp")
+	logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("successfully created otp")
 
 	params := twilioApi.CreateMessageParams{}
 	params.SetFrom("whatsapp:+14155238886")
@@ -197,16 +214,17 @@ func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
 
 	_, err = twilioClient.Api.CreateMessage(&params)
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "generateOTPHandler()")).Msg("failed to send otp")
+		logWithCtx.Error().Err(err).Msg("failed to send otp")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("successfully sent otp")
+	logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("successfully sent otp")
 	res.WriteHeader(http.StatusCreated)
 }
 
 func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
+	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	body := struct {
 		PhoneNumber string `json:"phone_number"`
 		UserOTP     string `json:"user_otp"`
@@ -214,7 +232,7 @@ func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
 
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "verifyOTPHandler()")).Msg("invalid json body")
+		logWithCtx.Error().Err(err).Msg("invalid json body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -226,10 +244,16 @@ func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
 	otp, err := redisClient.Get(otpKey).Result()
 	if err != nil {
 		if err == redis.Nil {
-			log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("otp not found")
-			http.Error(res, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("otp not found")
+			message := fmt.Sprintf("Kamu belum memiliki kode OTP")
+
+			err = sendJSONErrorResponse(res, ErrorResponseParams{StatusCode: http.StatusNotFound, Message: message})
+			if err != nil {
+				logWithCtx.Error().Err(err).Msg("failed to send json error response")
+				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
 		} else {
-			log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "verifyOTPHandler()")).Msg("failed to get otp")
+			logWithCtx.Error().Err(err).Msg("failed to get otp")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		return
@@ -237,7 +261,7 @@ func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
 
 	submissionCount, err := redisClient.Incr(otpSubmissionLimitKey).Result()
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "verifyOTPHandler()")).Msg("failed to increment otp submission limit")
+		logWithCtx.Error().Err(err).Msg("failed to increment otp submission limit")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -245,23 +269,42 @@ func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
 	if submissionCount > int64(OTP_SUBMISSION_LIMIT) {
 		remainingTime, err := redisClient.TTL(otpKey).Result()
 		if err != nil {
-			log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "verifyOTPHandler()")).Msg("failed to get the remaining time of otp")
+			logWithCtx.Error().Err(err).Msg("failed to get the remaining time of otp")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("otp submission already reached its limit")
+		logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("otp submission already reached its limit")
 		res.Header().Set("Retry-After", fmt.Sprintf("%d", int(remainingTime.Seconds())))
-		http.Error(res, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+
+		message := fmt.Sprintf(
+			"Verifikasi kode OTP telah mencapai batas. Tunggu %d detik agar dapat mengirim ulang kode OTP",
+			int(remainingTime.Seconds()),
+		)
+
+		err = sendJSONErrorResponse(res, ErrorResponseParams{StatusCode: http.StatusTooManyRequests, Message: message})
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to send json error response")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
 
 	if body.UserOTP != otp {
-		log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("invalid otp")
-		http.Error(res, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("invalid otp")
+		message := fmt.Sprintf(
+			"Kode OTP yang kamu masukkan salah. Kesempatan kamu tersisa %d",
+			OTP_SUBMISSION_LIMIT-int(submissionCount),
+		)
+
+		err = sendJSONErrorResponse(res, ErrorResponseParams{StatusCode: http.StatusUnauthorized, Message: message})
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to send json error response")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
-	log.Ctx(req.Context()).Info().Str("phone_number", body.PhoneNumber).Msg("successfully verified otp")
+	logWithCtx.Info().Str("phone_number", body.PhoneNumber).Msg("successfully verified otp")
 
 	tx := redisClient.TxPipeline()
 	tx.Del(otpGenLimitKey)
@@ -270,12 +313,7 @@ func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
 
 	_, err = tx.Exec()
 	if err != nil {
-		log.
-			Ctx(req.Context()).
-			Error().
-			Err(errors.Wrap(err, "verifyOTPHandler()")).
-			Msgf("failed to delete %s, %s, and %s", otpGenLimitKey, otpSubmissionLimitKey, otpKey)
-
+		logWithCtx.Error().Err(err).Msgf("failed to delete %s, %s, and %s", otpGenLimitKey, otpSubmissionLimitKey, otpKey)
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -292,13 +330,12 @@ func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
 		},
 	)
 	if err != nil {
-		log.Ctx(req.Context()).Error().Err(errors.Wrap(err, "verifyOTPHandler()")).Msg("failed to update user phone number")
+		logWithCtx.Error().Err(err).Msg("failed to update user phone number")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	log.
-		Ctx(req.Context()).
+	logWithCtx.
 		Info().
 		Str("user_id", userID).
 		Str("phone_number", body.PhoneNumber).

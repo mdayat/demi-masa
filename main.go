@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	firebase "firebase.google.com/go/v4"
@@ -39,6 +41,10 @@ func main() {
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+		return filepath.Base(file) + ":" + strconv.Itoa(line)
+	}
+	log.Logger = log.With().Caller().Logger()
 
 	ctx := context.Background()
 	db, err = pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
