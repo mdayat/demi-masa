@@ -97,7 +97,7 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 
 var OTP_GEN_LIMIT = 3
 var OTP_SUBMISSION_LIMIT = 3
-var OTP_DURATION = time.Minute * 3
+var OTP_DURATION = time.Minute * 2
 var OTP_GEN_LIMIT_DURATION = time.Hour * 24
 
 func generateOTP() string {
