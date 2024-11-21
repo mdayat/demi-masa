@@ -102,8 +102,11 @@ func main() {
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
 
+		r.Get("/users/{userID}", getUserHandler)
+
 		r.Post("/otp/generation", generateOTPHandler)
 		r.Post("/otp/verification", verifyOTPHandler)
+
 		r.Post("/order", createOrderHandler)
 	})
 

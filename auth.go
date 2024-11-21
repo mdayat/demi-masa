@@ -76,18 +76,8 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		logWithCtx.Info().Str("user_id", token.UID).Msg("successfully created new user")
 
-		respBody := struct {
-			PhoneVerified bool `json:"phone_verified"`
-		}{
-			PhoneVerified: false,
-		}
-
 		res.Header().Set("Location", fmt.Sprintf("/users/%s", user.ID))
-		err = sendJSONSuccessResponse(res, SuccessResponseParams{StatusCode: http.StatusCreated, Data: respBody})
-		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to send json success response")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+		res.WriteHeader(http.StatusCreated)
 		return
 	}
 
