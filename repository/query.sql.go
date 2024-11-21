@@ -17,13 +17,13 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type CreateOrderParams struct {
-	ID                   pgtype.UUID
-	UserID               string
-	TransactionID        string
-	CouponCode           pgtype.Text
-	Amount               int32
-	SubscriptionDuration int32
-	PaymentMethod        string
+	ID                   pgtype.UUID `json:"id"`
+	UserID               string      `json:"user_id"`
+	TransactionID        string      `json:"transaction_id"`
+	CouponCode           pgtype.Text `json:"coupon_code"`
+	Amount               int32       `json:"amount"`
+	SubscriptionDuration int32       `json:"subscription_duration"`
+	PaymentMethod        string      `json:"payment_method"`
 }
 
 func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) error {
@@ -44,9 +44,9 @@ INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)
 `
 
 type CreateUserParams struct {
-	ID    string
-	Name  string
-	Email string
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
@@ -87,13 +87,13 @@ FROM "order" o JOIN "user" u ON o.user_id = u.id WHERE o.id = $1
 `
 
 type GetOrderByIDWithUserRow struct {
-	OrderID              pgtype.UUID
-	PaymentStatus        PaymentStatus
-	SubscriptionDuration int32
-	UserID               string
-	AccountType          AccountType
-	UpgradedAt           pgtype.Timestamptz
-	ExpiredAt            pgtype.Timestamptz
+	OrderID              pgtype.UUID        `json:"order_id"`
+	PaymentStatus        PaymentStatus      `json:"payment_status"`
+	SubscriptionDuration int32              `json:"subscription_duration"`
+	UserID               string             `json:"user_id"`
+	AccountType          AccountType        `json:"account_type"`
+	UpgradedAt           pgtype.Timestamptz `json:"upgraded_at"`
+	ExpiredAt            pgtype.Timestamptz `json:"expired_at"`
 }
 
 func (q *Queries) GetOrderByIDWithUser(ctx context.Context, id pgtype.UUID) (GetOrderByIDWithUserRow, error) {
@@ -160,8 +160,8 @@ UPDATE "order" SET payment_status = $2 WHERE id = $1
 `
 
 type UpdateOrderStatusParams struct {
-	ID            pgtype.UUID
-	PaymentStatus PaymentStatus
+	ID            pgtype.UUID   `json:"id"`
+	PaymentStatus PaymentStatus `json:"payment_status"`
 }
 
 func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
@@ -174,9 +174,9 @@ UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1
 `
 
 type UpdateUserPhoneNumberParams struct {
-	ID            string
-	PhoneNumber   pgtype.Text
-	PhoneVerified bool
+	ID            string      `json:"id"`
+	PhoneNumber   pgtype.Text `json:"phone_number"`
+	PhoneVerified bool        `json:"phone_verified"`
 }
 
 func (q *Queries) UpdateUserPhoneNumber(ctx context.Context, arg UpdateUserPhoneNumberParams) error {
@@ -190,10 +190,10 @@ WHERE id = $1
 `
 
 type UpdateUserSubscriptionParams struct {
-	ID          string
-	AccountType AccountType
-	UpgradedAt  pgtype.Timestamptz
-	ExpiredAt   pgtype.Timestamptz
+	ID          string             `json:"id"`
+	AccountType AccountType        `json:"account_type"`
+	UpgradedAt  pgtype.Timestamptz `json:"upgraded_at"`
+	ExpiredAt   pgtype.Timestamptz `json:"expired_at"`
 }
 
 func (q *Queries) UpdateUserSubscription(ctx context.Context, arg UpdateUserSubscriptionParams) error {

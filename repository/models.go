@@ -31,8 +31,8 @@ func (e *AccountType) Scan(src interface{}) error {
 }
 
 type NullAccountType struct {
-	AccountType AccountType
-	Valid       bool // Valid is true if AccountType is not NULL
+	AccountType AccountType `json:"account_type"`
+	Valid       bool        `json:"valid"` // Valid is true if AccountType is not NULL
 }
 
 // Scan implements the Scanner interface.
@@ -74,8 +74,8 @@ func (e *PaymentStatus) Scan(src interface{}) error {
 }
 
 type NullPaymentStatus struct {
-	PaymentStatus PaymentStatus
-	Valid         bool // Valid is true if PaymentStatus is not NULL
+	PaymentStatus PaymentStatus `json:"payment_status"`
+	Valid         bool          `json:"valid"` // Valid is true if PaymentStatus is not NULL
 }
 
 // Scan implements the Scanner interface.
@@ -97,31 +97,31 @@ func (ns NullPaymentStatus) Value() (driver.Value, error) {
 }
 
 type Coupon struct {
-	Code      string
-	Quota     int16
-	CreatedAt pgtype.Timestamptz
+	Code      string             `json:"code"`
+	Quota     int16              `json:"quota"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type Order struct {
-	ID                   pgtype.UUID
-	UserID               string
-	TransactionID        string
-	CouponCode           pgtype.Text
-	Amount               int32
-	SubscriptionDuration int32
-	PaymentMethod        string
-	PaymentStatus        PaymentStatus
+	ID                   pgtype.UUID   `json:"id"`
+	UserID               string        `json:"user_id"`
+	TransactionID        string        `json:"transaction_id"`
+	CouponCode           pgtype.Text   `json:"coupon_code"`
+	Amount               int32         `json:"amount"`
+	SubscriptionDuration int32         `json:"subscription_duration"`
+	PaymentMethod        string        `json:"payment_method"`
+	PaymentStatus        PaymentStatus `json:"payment_status"`
 }
 
 type User struct {
-	ID            string
-	Name          string
-	Email         string
-	PhoneNumber   pgtype.Text
-	PhoneVerified bool
-	AccountType   AccountType
-	UpgradedAt    pgtype.Timestamptz
-	ExpiredAt     pgtype.Timestamptz
-	CreatedAt     pgtype.Timestamptz
-	DeletedAt     pgtype.Timestamptz
+	ID            string             `json:"id"`
+	Name          string             `json:"name"`
+	Email         string             `json:"email"`
+	PhoneNumber   pgtype.Text        `json:"phone_number"`
+	PhoneVerified bool               `json:"phone_verified"`
+	AccountType   AccountType        `json:"account_type"`
+	UpgradedAt    pgtype.Timestamptz `json:"upgraded_at"`
+	ExpiredAt     pgtype.Timestamptz `json:"expired_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
 }
