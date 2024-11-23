@@ -39,8 +39,80 @@ type OrderError struct {
 	Status   int    `json:"status"`
 }
 
+type OrderResponseStatus struct {
+	Status interface{} `json:"status"`
+}
+
+func applyCoupon(ctx context.Context, couponCode string) (bool, error) {
+	_, err := queries.DecrementCouponQuota(ctx, couponCode)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func createTokopayOrder(orderURL string) (OrderResponseStatus, *[]byte, error) {
+	response, err := http.Get(orderURL)
+	if err != nil {
+		return OrderResponseStatus{}, nil, errors.Wrap(err, "failed to make http get request to create order")
+	}
+	defer response.Body.Close()
+
+	bytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		return OrderResponseStatus{}, nil, errors.Wrap(err, "failed to read tokopay order response")
+	}
+
+	var responseStatus struct {
+		Status interface{} `json:"status"`
+	}
+
+	if err := json.Unmarshal(bytes, &responseStatus); err != nil {
+		return OrderResponseStatus{}, nil, errors.Wrap(err, "failed to unmarshal tokopay order response status")
+	}
+
+	return responseStatus, &bytes, nil
+}
+
 func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
+	var shouldRollbackQuota bool
+	var couponCode pgtype.Text
+
+	defer func() {
+		if shouldRollbackQuota {
+			var err error
+			ctx := context.Background()
+
+			maxRetries := 3
+			retryDelay := time.Second * 2
+			attempt := 1
+
+			for attempt <= maxRetries {
+				err = queries.IncrementCouponQuota(ctx, couponCode.String)
+				if err == nil {
+					logWithCtx.Info().Str("coupon_code", couponCode.String).Msg("successfully rolled back coupon quota")
+					break
+				}
+
+				logWithCtx.
+					Info().
+					Str("coupon_code", couponCode.String).
+					Int("attempt", attempt).
+					Msg("failed to increment coupon quota")
+				time.Sleep(retryDelay)
+				attempt++
+			}
+
+			if attempt == maxRetries {
+				logWithCtx.Error().Err(err).Str("coupon_code", couponCode.String).Msg("failed to roll back coupon quota")
+			}
+		}
+	}()
+
 	var body struct {
 		Amount               int    `json:"amount"`
 		CouponCode           string `json:"coupon_code"`
@@ -55,19 +127,22 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := context.Background()
-	var couponCode pgtype.Text
+	if body.CouponCode != "" {
+		valid, err := applyCoupon(ctx, body.CouponCode)
+		if err != nil {
+			logWithCtx.Error().Err(err).Str("coupon_code", body.CouponCode).Msg("failed to decrement coupon quota")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 
-	coupon, err := queries.GetCoupon(ctx, body.CouponCode)
-	if err != nil && errors.Is(err, pgx.ErrNoRows) == false {
-		logWithCtx.Error().Err(err).Str("coupon_code", body.CouponCode).Msg("failed to get coupon by coupon code")
-		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	if err == nil && body.CouponCode == coupon.Code {
-		couponCode.String = body.CouponCode
-		couponCode.Valid = true
-		body.Amount = int(math.Round(float64(body.Amount) * 0.7))
+		if valid {
+			couponCode.String = body.CouponCode
+			couponCode.Valid = true
+			body.Amount = int(math.Round(float64(body.Amount) * 0.7))
+			logWithCtx.Info().Str("coupon_code", body.CouponCode).Msg("successfully decremented coupon quota")
+		} else {
+			logWithCtx.Info().Str("coupon_code", body.CouponCode).Msg("invalid coupon code or exhausted coupon quota")
+		}
 	}
 
 	MERCHANT_ID := os.Getenv("MERCHANT_ID")
@@ -85,65 +160,35 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 		QRISPaymentMethod,
 	)
 
-	response, err := http.Get(orderURL)
+	responseStatus, bytes, err := createTokopayOrder(orderURL)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to make http get request to create order")
+		if couponCode.Valid {
+			shouldRollbackQuota = true
+		}
+
+		logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to create tokopay order")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	defer response.Body.Close()
-
-	bytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to read tokopay order response")
-		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	var responseStatus struct {
-		Status interface{} `json:"status"`
-	}
-
-	if err := json.Unmarshal(bytes, &responseStatus); err != nil {
-		logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to unmarshal tokopay order response status")
-		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
+	logWithCtx.Info().Str("order_id", refIDString).Msg("successfully created tokopay order")
 
 	switch responseStatus.Status.(type) {
 	case string:
 		var orderSuccess OrderSuccess
-		if err := json.Unmarshal(bytes, &orderSuccess); err != nil {
+		if err := json.Unmarshal(*bytes, &orderSuccess); err != nil {
+			if couponCode.Valid {
+				shouldRollbackQuota = true
+			}
+
 			logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to unmarshal tokopay successful order")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		logWithCtx.
-			Info().
-			Str("order_id", refIDString).
-			Str("transaction_id", orderSuccess.Data.TrxID).
-			Int("amount", body.Amount).
-			Msg("successfully created tokopay order")
-
-		tx, err := db.Begin(ctx)
-		if err != nil {
-			logWithCtx.
-				Error().
-				Err(err).
-				Str("order_id", refIDString).
-				Str("coupon_code", body.CouponCode).
-				Msg("failed to start db transaction to create order and/or decrement coupon quota")
-
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		defer tx.Rollback(ctx)
-
 		userID := fmt.Sprintf("%s", req.Context().Value("userID"))
-		qtx := queries.WithTx(tx)
+		oneDay := time.Unix(time.Now().Unix()+int64(time.Hour.Seconds()*24), 0)
 
-		err = qtx.CreateOrder(
+		err = queries.CreateOrder(
 			ctx,
 			repository.CreateOrderParams{
 				ID:                   pgtype.UUID{Bytes: refID, Valid: true},
@@ -153,44 +198,21 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 				Amount:               int32(body.Amount),
 				SubscriptionDuration: int32(body.SubscriptionDuration),
 				PaymentMethod:        QRISPaymentMethod,
+				PaymentUrl:           orderSuccess.Data.QrLink,
+				ExpiredAt:            pgtype.Timestamptz{Time: oneDay, Valid: true},
 			},
 		)
 
 		if err != nil {
+			if couponCode.Valid {
+				shouldRollbackQuota = true
+			}
+
 			logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to create order")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		logWithCtx.Info().Str("order_id", refIDString).Msg("successfully createed order")
-
-		if couponCode.Valid {
-			err = qtx.DecrementCouponQuota(ctx, couponCode.String)
-			if err != nil {
-				logWithCtx.Error().Err(err).Str("coupon_code", body.CouponCode).Msg("failed to decrement coupon quota")
-				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			logWithCtx.Info().Str("coupon_code", body.CouponCode).Msg("successfully decremented coupon quota")
-		}
-
-		err = tx.Commit(ctx)
-		if err != nil {
-			logWithCtx.
-				Error().
-				Err(err).
-				Str("order_id", refIDString).
-				Str("coupon_code", body.CouponCode).
-				Msg("failed to commit transaction to create order and/or decrement coupon quota")
-
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		log.
-			Info().
-			Str("order_id", refIDString).
-			Str("coupon_code", body.CouponCode).
-			Msg("successfully created order and/or decremented coupon quota")
+		logWithCtx.Info().Str("order_id", refIDString).Msg("successfully created order")
 
 		respBody := struct {
 			QRLink string `json:"qr_link"`
@@ -206,10 +228,14 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 
 	case float64:
 		var orderError OrderError
-		if err := json.Unmarshal(bytes, &orderError); err != nil {
+		if err := json.Unmarshal(*bytes, &orderError); err != nil {
 			logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to unmarshal tokopay failed order")
 		} else {
 			logWithCtx.Error().Err(errors.New(orderError.ErrorMsg)).Str("order_id", refIDString).Msg("")
+		}
+
+		if couponCode.Valid {
+			shouldRollbackQuota = true
 		}
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
@@ -218,9 +244,12 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 			Error().
 			Err(err).
 			Str("order_id", refIDString).
-			Str("order_payload", string(bytes)).
+			Str("order_payload", string(*bytes)).
 			Msgf("unknown tokopay order response status type: %T", responseStatus.Status)
 
+		if couponCode.Valid {
+			shouldRollbackQuota = true
+		}
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
@@ -316,7 +345,8 @@ func webhookHandler(res http.ResponseWriter, req *http.Request) {
 			ctx,
 			repository.UpdateOrderStatusParams{
 				ID:            orderWithUser.OrderID,
-				PaymentStatus: repository.PaymentStatusSuccess,
+				PaymentStatus: repository.PaymentStatusPaid,
+				PaidAt:        pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
 		)
 
