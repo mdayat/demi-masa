@@ -56,9 +56,8 @@ func (ns NullAccountType) Value() (driver.Value, error) {
 type PaymentStatus string
 
 const (
-	PaymentStatusUnpaid  PaymentStatus = "unpaid"
-	PaymentStatusSuccess PaymentStatus = "success"
-	PaymentStatusFailed  PaymentStatus = "failed"
+	PaymentStatusUnpaid PaymentStatus = "unpaid"
+	PaymentStatusPaid   PaymentStatus = "paid"
 )
 
 func (e *PaymentStatus) Scan(src interface{}) error {
@@ -97,20 +96,25 @@ func (ns NullPaymentStatus) Value() (driver.Value, error) {
 }
 
 type Coupon struct {
-	Code      string             `json:"code"`
-	Quota     int16              `json:"quota"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Code               string             `json:"code"`
+	InfluencerUsername string             `json:"influencer_username"`
+	Quota              int16              `json:"quota"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type Order struct {
-	ID                   pgtype.UUID   `json:"id"`
-	UserID               string        `json:"user_id"`
-	TransactionID        string        `json:"transaction_id"`
-	CouponCode           pgtype.Text   `json:"coupon_code"`
-	Amount               int32         `json:"amount"`
-	SubscriptionDuration int32         `json:"subscription_duration"`
-	PaymentMethod        string        `json:"payment_method"`
-	PaymentStatus        PaymentStatus `json:"payment_status"`
+	ID                   pgtype.UUID        `json:"id"`
+	UserID               string             `json:"user_id"`
+	TransactionID        string             `json:"transaction_id"`
+	CouponCode           pgtype.Text        `json:"coupon_code"`
+	Amount               int32              `json:"amount"`
+	SubscriptionDuration int32              `json:"subscription_duration"`
+	PaymentMethod        string             `json:"payment_method"`
+	PaymentUrl           string             `json:"payment_url"`
+	PaymentStatus        PaymentStatus      `json:"payment_status"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	PaidAt               pgtype.Timestamptz `json:"paid_at"`
 }
 
 type User struct {

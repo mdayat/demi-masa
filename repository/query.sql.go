@@ -12,8 +12,8 @@ import (
 )
 
 const createOrder = `-- name: CreateOrder :exec
-INSERT INTO "order" (id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO "order" (id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type CreateOrderParams struct {
@@ -24,6 +24,7 @@ type CreateOrderParams struct {
 	Amount               int32       `json:"amount"`
 	SubscriptionDuration int32       `json:"subscription_duration"`
 	PaymentMethod        string      `json:"payment_method"`
+	PaymentUrl           string      `json:"payment_url"`
 }
 
 func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) error {
@@ -35,6 +36,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) error 
 		arg.Amount,
 		arg.SubscriptionDuration,
 		arg.PaymentMethod,
+		arg.PaymentUrl,
 	)
 	return err
 }
@@ -64,13 +66,19 @@ func (q *Queries) DecrementCouponQuota(ctx context.Context, code string) error {
 }
 
 const getCoupon = `-- name: GetCoupon :one
-SELECT code, quota, created_at FROM coupon WHERE code = $1
+SELECT code, influencer_username, quota, created_at, deleted_at FROM coupon WHERE code = $1
 `
 
 func (q *Queries) GetCoupon(ctx context.Context, code string) (Coupon, error) {
 	row := q.db.QueryRow(ctx, getCoupon, code)
 	var i Coupon
-	err := row.Scan(&i.Code, &i.Quota, &i.CreatedAt)
+	err := row.Scan(
+		&i.Code,
+		&i.InfluencerUsername,
+		&i.Quota,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
 	return i, err
 }
 
@@ -156,16 +164,17 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 }
 
 const updateOrderStatus = `-- name: UpdateOrderStatus :exec
-UPDATE "order" SET payment_status = $2 WHERE id = $1
+UPDATE "order" SET payment_status = $2, paid_at = $3 WHERE id = $1
 `
 
 type UpdateOrderStatusParams struct {
-	ID            pgtype.UUID   `json:"id"`
-	PaymentStatus PaymentStatus `json:"payment_status"`
+	ID            pgtype.UUID        `json:"id"`
+	PaymentStatus PaymentStatus      `json:"payment_status"`
+	PaidAt        pgtype.Timestamptz `json:"paid_at"`
 }
 
 func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
-	_, err := q.db.Exec(ctx, updateOrderStatus, arg.ID, arg.PaymentStatus)
+	_, err := q.db.Exec(ctx, updateOrderStatus, arg.ID, arg.PaymentStatus, arg.PaidAt)
 	return err
 }
 

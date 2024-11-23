@@ -32,8 +32,8 @@ SELECT
 FROM "order" o JOIN "user" u ON o.user_id = u.id WHERE o.id = $1;
 
 -- name: CreateOrder :exec
-INSERT INTO "order" (id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method)
-VALUES ($1, $2, $3, $4, $5, $6, $7);
+INSERT INTO "order" (id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: UpdateOrderStatus :exec
-UPDATE "order" SET payment_status = $2 WHERE id = $1;
+UPDATE "order" SET payment_status = $2, paid_at = $3 WHERE id = $1;
