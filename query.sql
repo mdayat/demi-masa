@@ -14,11 +14,12 @@ WHERE id = $1;
 -- name: CreateUser :exec
 INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3);
 
--- name: GetCoupon :one
-SELECT * FROM coupon WHERE code = $1;
+-- name: DecrementCouponQuota :one
+UPDATE coupon SET quota = quota - 1
+WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;
 
--- name: DecrementCouponQuota :exec
-UPDATE coupon SET quota = quota - 1 WHERE code = $1 AND quota > 0;
+-- name: IncrementCouponQuota :exec
+UPDATE coupon SET quota = quota + 1 WHERE code = $1;
 
 -- name: GetOrderByIDWithUser :one
 SELECT 
@@ -32,8 +33,17 @@ SELECT
 FROM "order" o JOIN "user" u ON o.user_id = u.id WHERE o.id = $1;
 
 -- name: CreateOrder :exec
-INSERT INTO "order" (id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+INSERT INTO "order" (
+  id,
+  user_id,
+  transaction_id,
+  coupon_code,
+  amount,
+  subscription_duration,
+  payment_method,
+  payment_url,
+  expired_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: UpdateOrderStatus :exec
 UPDATE "order" SET payment_status = $2, paid_at = $3 WHERE id = $1;

@@ -12,19 +12,29 @@ import (
 )
 
 const createOrder = `-- name: CreateOrder :exec
-INSERT INTO "order" (id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO "order" (
+  id,
+  user_id,
+  transaction_id,
+  coupon_code,
+  amount,
+  subscription_duration,
+  payment_method,
+  payment_url,
+  expired_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
 type CreateOrderParams struct {
-	ID                   pgtype.UUID `json:"id"`
-	UserID               string      `json:"user_id"`
-	TransactionID        string      `json:"transaction_id"`
-	CouponCode           pgtype.Text `json:"coupon_code"`
-	Amount               int32       `json:"amount"`
-	SubscriptionDuration int32       `json:"subscription_duration"`
-	PaymentMethod        string      `json:"payment_method"`
-	PaymentUrl           string      `json:"payment_url"`
+	ID                   pgtype.UUID        `json:"id"`
+	UserID               string             `json:"user_id"`
+	TransactionID        string             `json:"transaction_id"`
+	CouponCode           pgtype.Text        `json:"coupon_code"`
+	Amount               int32              `json:"amount"`
+	SubscriptionDuration int32              `json:"subscription_duration"`
+	PaymentMethod        string             `json:"payment_method"`
+	PaymentUrl           string             `json:"payment_url"`
+	ExpiredAt            pgtype.Timestamptz `json:"expired_at"`
 }
 
 func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) error {
@@ -37,6 +47,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) error 
 		arg.SubscriptionDuration,
 		arg.PaymentMethod,
 		arg.PaymentUrl,
+		arg.ExpiredAt,
 	)
 	return err
 }
@@ -56,30 +67,16 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	return err
 }
 
-const decrementCouponQuota = `-- name: DecrementCouponQuota :exec
-UPDATE coupon SET quota = quota - 1 WHERE code = $1 AND quota > 0
+const decrementCouponQuota = `-- name: DecrementCouponQuota :one
+UPDATE coupon SET quota = quota - 1
+WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota
 `
 
-func (q *Queries) DecrementCouponQuota(ctx context.Context, code string) error {
-	_, err := q.db.Exec(ctx, decrementCouponQuota, code)
-	return err
-}
-
-const getCoupon = `-- name: GetCoupon :one
-SELECT code, influencer_username, quota, created_at, deleted_at FROM coupon WHERE code = $1
-`
-
-func (q *Queries) GetCoupon(ctx context.Context, code string) (Coupon, error) {
-	row := q.db.QueryRow(ctx, getCoupon, code)
-	var i Coupon
-	err := row.Scan(
-		&i.Code,
-		&i.InfluencerUsername,
-		&i.Quota,
-		&i.CreatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
+func (q *Queries) DecrementCouponQuota(ctx context.Context, code string) (int16, error) {
+	row := q.db.QueryRow(ctx, decrementCouponQuota, code)
+	var quota int16
+	err := row.Scan(&quota)
+	return quota, err
 }
 
 const getOrderByIDWithUser = `-- name: GetOrderByIDWithUser :one
@@ -161,6 +158,15 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const incrementCouponQuota = `-- name: IncrementCouponQuota :exec
+UPDATE coupon SET quota = quota + 1 WHERE code = $1
+`
+
+func (q *Queries) IncrementCouponQuota(ctx context.Context, code string) error {
+	_, err := q.db.Exec(ctx, incrementCouponQuota, code)
+	return err
 }
 
 const updateOrderStatus = `-- name: UpdateOrderStatus :exec

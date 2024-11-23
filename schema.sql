@@ -1,5 +1,5 @@
 CREATE TYPE account_type AS ENUM ('free', 'premium');
-CREATE TYPE payment_status AS ENUM ('unpaid', 'paid');
+CREATE TYPE payment_status AS ENUM ('unpaid', 'paid', 'success', 'failed');
 
 CREATE TABLE "user" (
   id VARCHAR(255),
@@ -38,6 +38,7 @@ CREATE TABLE "order" (
   payment_status payment_status DEFAULT 'unpaid' NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   paid_at TIMESTAMPTZ,
+  expired_at TIMESTAMPTZ,
 
   PRIMARY KEY (id),
 

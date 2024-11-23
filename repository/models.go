@@ -56,8 +56,10 @@ func (ns NullAccountType) Value() (driver.Value, error) {
 type PaymentStatus string
 
 const (
-	PaymentStatusUnpaid PaymentStatus = "unpaid"
-	PaymentStatusPaid   PaymentStatus = "paid"
+	PaymentStatusUnpaid  PaymentStatus = "unpaid"
+	PaymentStatusPaid    PaymentStatus = "paid"
+	PaymentStatusSuccess PaymentStatus = "success"
+	PaymentStatusFailed  PaymentStatus = "failed"
 )
 
 func (e *PaymentStatus) Scan(src interface{}) error {
@@ -115,6 +117,7 @@ type Order struct {
 	PaymentStatus        PaymentStatus      `json:"payment_status"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	PaidAt               pgtype.Timestamptz `json:"paid_at"`
+	ExpiredAt            pgtype.Timestamptz `json:"expired_at"`
 }
 
 type User struct {
