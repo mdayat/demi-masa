@@ -18,9 +18,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var QRISPaymentMethod = "QRISREALTIME"
+const qrisPaymentMethod = "QRISREALTIME"
 
-type OrderSuccess struct {
+type orderSuccess struct {
 	Data struct {
 		Other             string `json:"other"`
 		PanduanPembayaran string `json:"panduan_pembayaran"`
@@ -34,12 +34,12 @@ type OrderSuccess struct {
 	Status string `json:"status"`
 }
 
-type OrderError struct {
+type orderError struct {
 	ErrorMsg string `json:"error_msg"`
 	Status   int    `json:"status"`
 }
 
-type OrderResponseStatus struct {
+type orderResponseStatus struct {
 	Status interface{} `json:"status"`
 }
 
@@ -54,16 +54,16 @@ func applyCoupon(ctx context.Context, couponCode string) (bool, error) {
 	return true, nil
 }
 
-func createTokopayOrder(orderURL string) (OrderResponseStatus, *[]byte, error) {
+func createTokopayOrder(orderURL string) (orderResponseStatus, *[]byte, error) {
 	response, err := http.Get(orderURL)
 	if err != nil {
-		return OrderResponseStatus{}, nil, errors.Wrap(err, "failed to make http get request to create order")
+		return orderResponseStatus{}, nil, errors.Wrap(err, "failed to make http get request to create order")
 	}
 	defer response.Body.Close()
 
 	bytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		return OrderResponseStatus{}, nil, errors.Wrap(err, "failed to read tokopay order response")
+		return orderResponseStatus{}, nil, errors.Wrap(err, "failed to read tokopay order response")
 	}
 
 	var responseStatus struct {
@@ -71,7 +71,7 @@ func createTokopayOrder(orderURL string) (OrderResponseStatus, *[]byte, error) {
 	}
 
 	if err := json.Unmarshal(bytes, &responseStatus); err != nil {
-		return OrderResponseStatus{}, nil, errors.Wrap(err, "failed to unmarshal tokopay order response status")
+		return orderResponseStatus{}, nil, errors.Wrap(err, "failed to unmarshal tokopay order response status")
 	}
 
 	return responseStatus, &bytes, nil
@@ -86,30 +86,25 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 		if shouldRollbackQuota {
 			var err error
 			ctx := context.Background()
-
 			maxRetries := 3
 			retryDelay := time.Second * 2
-			attempt := 1
 
-			for attempt <= maxRetries {
+			for i := 1; i <= maxRetries; i++ {
 				err = queries.IncrementCouponQuota(ctx, couponCode.String)
 				if err == nil {
 					logWithCtx.Info().Str("coupon_code", couponCode.String).Msg("successfully rolled back coupon quota")
-					break
+					return
 				}
 
 				logWithCtx.
 					Info().
 					Str("coupon_code", couponCode.String).
-					Int("attempt", attempt).
+					Int("attempt", i).
 					Msg("failed to increment coupon quota")
 				time.Sleep(retryDelay)
-				attempt++
 			}
 
-			if attempt == maxRetries {
-				logWithCtx.Error().Err(err).Str("coupon_code", couponCode.String).Msg("failed to roll back coupon quota")
-			}
+			logWithCtx.Error().Err(err).Str("coupon_code", couponCode.String).Msg("failed to roll back coupon quota")
 		}
 	}()
 
@@ -157,7 +152,7 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 		SECRET_KEY,
 		refIDString,
 		body.Amount,
-		QRISPaymentMethod,
+		qrisPaymentMethod,
 	)
 
 	responseStatus, bytes, err := createTokopayOrder(orderURL)
@@ -174,7 +169,7 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 
 	switch responseStatus.Status.(type) {
 	case string:
-		var orderSuccess OrderSuccess
+		var orderSuccess orderSuccess
 		if err := json.Unmarshal(*bytes, &orderSuccess); err != nil {
 			if couponCode.Valid {
 				shouldRollbackQuota = true
@@ -197,7 +192,7 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 				CouponCode:           couponCode,
 				Amount:               int32(body.Amount),
 				SubscriptionDuration: int32(body.SubscriptionDuration),
-				PaymentMethod:        QRISPaymentMethod,
+				PaymentMethod:        qrisPaymentMethod,
 				PaymentUrl:           orderSuccess.Data.QrLink,
 				ExpiredAt:            pgtype.Timestamptz{Time: oneDay, Valid: true},
 			},
@@ -227,7 +222,7 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 		}
 
 	case float64:
-		var orderError OrderError
+		var orderError orderError
 		if err := json.Unmarshal(*bytes, &orderError); err != nil {
 			logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to unmarshal tokopay failed order")
 		} else {
