@@ -1,16 +1,16 @@
-package main
+package httpserver
 
 import (
 	"encoding/json"
 	"net/http"
 )
 
-type SuccessResponseParams struct {
+type successResponseParams struct {
 	StatusCode int
 	Data       interface{}
 }
 
-func sendJSONSuccessResponse(res http.ResponseWriter, params SuccessResponseParams) error {
+func sendJSONSuccessResponse(res http.ResponseWriter, params successResponseParams) error {
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(params.StatusCode)
 	err := json.NewEncoder(res).Encode(&params.Data)
@@ -20,12 +20,12 @@ func sendJSONSuccessResponse(res http.ResponseWriter, params SuccessResponsePara
 	return nil
 }
 
-type ErrorResponseParams struct {
+type errorResponseParams struct {
 	StatusCode int
 	Message    string
 }
 
-func sendJSONErrorResponse(res http.ResponseWriter, params ErrorResponseParams) error {
+func sendJSONErrorResponse(res http.ResponseWriter, params errorResponseParams) error {
 	message := struct {
 		Message string `json:"message"`
 	}{

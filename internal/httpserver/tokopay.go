@@ -1,4 +1,4 @@
-package main
+package httpserver
 
 import (
 	"context"
@@ -215,7 +215,7 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 			QRLink: orderSuccess.Data.QrLink,
 		}
 
-		err = sendJSONSuccessResponse(res, SuccessResponseParams{StatusCode: http.StatusCreated, Data: respBody})
+		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: respBody})
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to send json success response")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -394,7 +394,7 @@ func webhookHandler(res http.ResponseWriter, req *http.Request) {
 			Status: true,
 		}
 
-		err = sendJSONSuccessResponse(res, SuccessResponseParams{StatusCode: http.StatusOK, Data: respBody})
+		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to send json success response")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
