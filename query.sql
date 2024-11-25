@@ -21,6 +21,9 @@ WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;
 -- name: IncrementCouponQuota :exec
 UPDATE coupon SET quota = quota + 1 WHERE code = $1;
 
+-- name: GetOrderByID :one
+SELECT * FROM "order" WHERE id = $1;
+
 -- name: GetOrderByIDWithUser :one
 SELECT 
   o.id AS order_id,
@@ -47,3 +50,6 @@ INSERT INTO "order" (
 
 -- name: UpdateOrderStatus :exec
 UPDATE "order" SET payment_status = $2, paid_at = $3 WHERE id = $1;
+
+-- name: DeleteOrderByID :exec
+DELETE FROM "order" WHERE id = $1;

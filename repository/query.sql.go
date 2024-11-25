@@ -79,6 +79,39 @@ func (q *Queries) DecrementCouponQuota(ctx context.Context, code string) (int16,
 	return quota, err
 }
 
+const deleteOrderByID = `-- name: DeleteOrderByID :exec
+DELETE FROM "order" WHERE id = $1
+`
+
+func (q *Queries) DeleteOrderByID(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteOrderByID, id)
+	return err
+}
+
+const getOrderByID = `-- name: GetOrderByID :one
+SELECT id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url, payment_status, created_at, paid_at, expired_at FROM "order" WHERE id = $1
+`
+
+func (q *Queries) GetOrderByID(ctx context.Context, id pgtype.UUID) (Order, error) {
+	row := q.db.QueryRow(ctx, getOrderByID, id)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TransactionID,
+		&i.CouponCode,
+		&i.Amount,
+		&i.SubscriptionDuration,
+		&i.PaymentMethod,
+		&i.PaymentUrl,
+		&i.PaymentStatus,
+		&i.CreatedAt,
+		&i.PaidAt,
+		&i.ExpiredAt,
+	)
+	return i, err
+}
+
 const getOrderByIDWithUser = `-- name: GetOrderByIDWithUser :one
 SELECT 
   o.id AS order_id,

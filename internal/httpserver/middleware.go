@@ -48,16 +48,16 @@ func logger(next http.Handler) http.Handler {
 		lres := loggerResponseWriter{res, http.StatusOK}
 		start := time.Now()
 
-		log := log.With().Str("req_id", uuid.New().String()).Logger()
-		ctx := log.WithContext(req.Context())
+		subLogger := log.With().Str("req_id", uuid.New().String()).Logger()
+		ctx := subLogger.WithContext(req.Context())
 
 		hostname, err := os.Hostname()
 		if err != nil {
 			hostname = req.Host
-			log.Error().Err(err).Msg("failed to get hostname")
+			subLogger.Error().Err(err).Msg("failed to get hostname")
 		}
 
-		log.Info().
+		subLogger.Info().
 			Str("method", req.Method).
 			Str("path", req.URL.Path).
 			Str("query", req.URL.RawQuery).
@@ -67,7 +67,7 @@ func logger(next http.Handler) http.Handler {
 			Msg("request received")
 
 		defer func() {
-			log.Info().
+			subLogger.Info().
 				Int("status_code", lres.statusCode).
 				Dur("res_time", time.Since(start)).
 				Msg("request completed")
