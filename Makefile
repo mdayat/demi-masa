@@ -1,5 +1,5 @@
-run:
-	go run .
+run-app:
+	go run cmd/httpserver/main.go
 
-build:
-	go fmt . && go vet && go build -o ./dist/
+run-worker:
+	go run cmd/workerserver/main.go
