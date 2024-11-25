@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mdayat/demi-masa-be/internal/services"
 	"github.com/mdayat/demi-masa-be/repository"
@@ -21,14 +22,16 @@ var (
 	firebaseAuth *auth.Client
 	redisClient  *redis.Client
 	twilioClient *twilio.RestClient
+	asynqClient  *asynq.Client
 )
 
-func NewServer() *chi.Mux {
+func New() *chi.Mux {
 	db = services.GetDB()
 	queries = services.GetQueries()
 	firebaseAuth = services.GetFirebaseAuth()
 	redisClient = services.GetRedis()
 	twilioClient = services.GetTwilio()
+	asynqClient = services.GetAsynqClient()
 
 	router := chi.NewRouter()
 	router.Use(middleware.CleanPath)

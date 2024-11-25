@@ -34,6 +34,6 @@ func main() {
 	services.InitTwilio(config.Env.TWILIO_ACCOUNT_SID, config.Env.TWILIO_AUTH_TOKEN)
 	services.InitAsynq(config.Env.REDIS_URL)
 
-	server := httpserver.NewServer()
+	server := httpserver.New()
 	http.ListenAndServe(":80", server)
 }
