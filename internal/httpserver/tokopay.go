@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/mdayat/demi-masa-be/internal/task"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -75,6 +76,38 @@ func createTokopayOrder(orderURL string) (orderResponseStatus, *[]byte, error) {
 	}
 
 	return responseStatus, &bytes, nil
+}
+
+func createOrderAndEnqueueTask(ctx context.Context, order repository.CreateOrderParams) error {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to start db transaction to create order and enqueue task")
+	}
+
+	qtx := queries.WithTx(tx)
+	err = qtx.CreateOrder(ctx, order)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to create order")
+	}
+
+	orderID := fmt.Sprintf("%s", ctx.Value("order_id"))
+	asynqTask, err := task.NewCleanupOrderTask(task.OrderTaskPayload{OrderID: orderID})
+	if err != nil {
+		return errors.Wrap(err, "failed to create task")
+	}
+
+	_, err = asynqClient.Enqueue(asynqTask)
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue task")
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to commit db transaction to create order and enqueue task")
+	}
+
+	return nil
 }
 
 func createOrderHandler(res http.ResponseWriter, req *http.Request) {
@@ -165,7 +198,6 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Str("order_id", refIDString).Msg("successfully created tokopay order")
 
 	switch responseStatus.Status.(type) {
 	case string:
@@ -179,35 +211,34 @@ func createOrderHandler(res http.ResponseWriter, req *http.Request) {
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+		logWithCtx.Info().Str("order_id", refIDString).Msg("successfully created tokopay order")
 
 		userID := fmt.Sprintf("%s", req.Context().Value("userID"))
 		oneDay := time.Unix(time.Now().Unix()+int64(time.Hour.Seconds()*24), 0)
 
-		err = queries.CreateOrder(
-			ctx,
-			repository.CreateOrderParams{
-				ID:                   pgtype.UUID{Bytes: refID, Valid: true},
-				UserID:               userID,
-				TransactionID:        orderSuccess.Data.TrxID,
-				CouponCode:           couponCode,
-				Amount:               int32(body.Amount),
-				SubscriptionDuration: int32(body.SubscriptionDuration),
-				PaymentMethod:        qrisPaymentMethod,
-				PaymentUrl:           orderSuccess.Data.QrLink,
-				ExpiredAt:            pgtype.Timestamptz{Time: oneDay, Valid: true},
-			},
-		)
+		order := repository.CreateOrderParams{
+			ID:                   pgtype.UUID{Bytes: refID, Valid: true},
+			UserID:               userID,
+			TransactionID:        orderSuccess.Data.TrxID,
+			CouponCode:           couponCode,
+			Amount:               int32(body.Amount),
+			SubscriptionDuration: int32(body.SubscriptionDuration),
+			PaymentMethod:        qrisPaymentMethod,
+			PaymentUrl:           orderSuccess.Data.QrLink,
+			ExpiredAt:            pgtype.Timestamptz{Time: oneDay, Valid: true},
+		}
 
+		err = createOrderAndEnqueueTask(context.WithValue(ctx, "order_id", refIDString), order)
 		if err != nil {
 			if couponCode.Valid {
 				shouldRollbackQuota = true
 			}
 
-			logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to create order")
+			logWithCtx.Error().Err(err).Str("order_id", refIDString).Msg("failed to create order and enqueue task")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		logWithCtx.Info().Str("order_id", refIDString).Msg("successfully created order")
+		logWithCtx.Info().Str("order_id", refIDString).Msg("successfully created order and enqueue task")
 
 		respBody := struct {
 			QRLink string `json:"qr_link"`
@@ -267,6 +298,48 @@ type TokopayWebhook struct {
 	Status    string `json:"status"`
 }
 
+// This function do three things:
+// (1) update order status,
+// (2) update user subscription, and
+// (3) delete a task from queue based on order id
+func updateOrderStatusAndUserSubs(
+	ctx context.Context,
+	updatedOrder repository.UpdateOrderStatusParams,
+	updatedUser repository.UpdateUserSubscriptionParams,
+) error {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		msg := "failed to start db transaction to update order status, user subscription, and task deletion"
+		return errors.Wrap(err, msg)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := queries.WithTx(tx)
+	err = qtx.UpdateOrderStatus(ctx, updatedOrder)
+	if err != nil {
+		return errors.Wrap(err, "failed to update order status")
+	}
+
+	err = qtx.UpdateUserSubscription(ctx, updatedUser)
+	if err != nil {
+		return errors.Wrap(err, "failed to update user subscription")
+	}
+
+	orderID := fmt.Sprintf("%s", ctx.Value("order_id"))
+	err = asynqInspector.DeleteTask("default", orderID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete task")
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		msg := "failed to commit db transaction to update order status, user subscription, and task deletion"
+		return errors.Wrap(err, msg)
+	}
+
+	return nil
+}
+
 func webhookHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	bytes, err := io.ReadAll(req.Body)
@@ -306,6 +379,7 @@ func webhookHandler(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		ctx := context.Background()
 		refIDBytes, err := uuid.Parse(body.ReffID)
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to parse uuid string to uuid bytes")
@@ -313,7 +387,6 @@ func webhookHandler(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		ctx := context.Background()
 		orderWithUser, err := queries.GetOrderByIDWithUser(ctx, pgtype.UUID{Bytes: refIDBytes, Valid: true})
 		if err != nil {
 			logWithCtx.Error().Err(err).Str("order_id", body.ReffID).Msg("failed to get order with user by order id")
@@ -321,62 +394,29 @@ func webhookHandler(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		tx, err := db.Begin(ctx)
-		if err != nil {
-			logWithCtx.
-				Error().
-				Err(err).
-				Str("order_id", body.ReffID).
-				Str("user_id", orderWithUser.UserID).
-				Msg("failed to start db transaction to update order status and user subscription")
-
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		defer tx.Rollback(ctx)
-
-		qtx := queries.WithTx(tx)
-		err = qtx.UpdateOrderStatus(
-			ctx,
-			repository.UpdateOrderStatusParams{
-				ID:            orderWithUser.OrderID,
-				PaymentStatus: repository.PaymentStatusPaid,
-				PaidAt:        pgtype.Timestamptz{Time: time.Now(), Valid: true},
-			},
-		)
-
-		if err != nil {
-			logWithCtx.Error().Err(err).Str("order_id", body.ReffID).Msg("failed to update order status")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
+		updatedOrder := repository.UpdateOrderStatusParams{
+			ID:            pgtype.UUID{Bytes: refIDBytes, Valid: true},
+			PaymentStatus: repository.PaymentStatusPaid,
+			PaidAt:        pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		}
 
 		upgradedAt := time.Now()
 		expiredAt := time.Unix(upgradedAt.Unix()+int64(orderWithUser.SubscriptionDuration), 0)
-		err = qtx.UpdateUserSubscription(
-			ctx,
-			repository.UpdateUserSubscriptionParams{
-				ID:          orderWithUser.UserID,
-				AccountType: repository.AccountTypePremium,
-				UpgradedAt:  pgtype.Timestamptz{Time: upgradedAt, Valid: true},
-				ExpiredAt:   pgtype.Timestamptz{Time: expiredAt, Valid: true},
-			},
-		)
-
-		if err != nil {
-			logWithCtx.Error().Err(err).Str("user_id", orderWithUser.UserID).Msg("failed to update user subscription")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
+		updatedUser := repository.UpdateUserSubscriptionParams{
+			ID:          orderWithUser.UserID,
+			AccountType: repository.AccountTypePremium,
+			UpgradedAt:  pgtype.Timestamptz{Time: upgradedAt, Valid: true},
+			ExpiredAt:   pgtype.Timestamptz{Time: expiredAt, Valid: true},
 		}
 
-		err = tx.Commit(ctx)
+		err = updateOrderStatusAndUserSubs(context.WithValue(ctx, "order_id", body.ReffID), updatedOrder, updatedUser)
 		if err != nil {
 			logWithCtx.
 				Error().
 				Err(err).
 				Str("order_id", body.ReffID).
 				Str("user_id", orderWithUser.UserID).
-				Msg("failed to commit transaction to update order status and user subscription")
+				Msg("failed to update order status, user subscription, and task deletion")
 
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -386,7 +426,7 @@ func webhookHandler(res http.ResponseWriter, req *http.Request) {
 			Info().
 			Str("order_id", body.ReffID).
 			Str("user_id", orderWithUser.UserID).
-			Msg("successfully updated order status and user subscription")
+			Msg("successfully updated order status, user subscription, and task deletion")
 
 		respBody := struct {
 			Status bool `json:"status"`

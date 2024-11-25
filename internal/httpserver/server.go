@@ -17,12 +17,13 @@ import (
 )
 
 var (
-	db           *pgxpool.Pool
-	queries      *repository.Queries
-	firebaseAuth *auth.Client
-	redisClient  *redis.Client
-	twilioClient *twilio.RestClient
-	asynqClient  *asynq.Client
+	db             *pgxpool.Pool
+	queries        *repository.Queries
+	firebaseAuth   *auth.Client
+	redisClient    *redis.Client
+	twilioClient   *twilio.RestClient
+	asynqClient    *asynq.Client
+	asynqInspector *asynq.Inspector
 )
 
 func New() *chi.Mux {
@@ -32,6 +33,7 @@ func New() *chi.Mux {
 	redisClient = services.GetRedis()
 	twilioClient = services.GetTwilio()
 	asynqClient = services.GetAsynqClient()
+	asynqInspector = services.GetAsynqInspector()
 
 	router := chi.NewRouter()
 	router.Use(middleware.CleanPath)
@@ -48,7 +50,6 @@ func New() *chi.Mux {
 		MaxAge:           300,
 	}
 	router.Use(cors.Handler(options))
-	router.Use(middleware.AllowContentType("application/json"))
 	router.Use(middleware.Heartbeat("/ping"))
 
 	router.Post("/login", loginHandler)
