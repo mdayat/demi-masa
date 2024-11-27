@@ -58,6 +58,8 @@ func New() *chi.Mux {
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
 
+		r.Delete("/users/{userID}", deleteUserHandler)
+
 		r.Post("/otp/generation", generateOTPHandler)
 		r.Post("/otp/verification", verifyOTPHandler)
 

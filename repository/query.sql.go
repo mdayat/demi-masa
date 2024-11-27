@@ -88,6 +88,16 @@ func (q *Queries) DeleteOrderByID(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const deleteUserByID = `-- name: DeleteUserByID :one
+DELETE FROM "user" WHERE id = $1 RETURNING id
+`
+
+func (q *Queries) DeleteUserByID(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, deleteUserByID, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getOrderByID = `-- name: GetOrderByID :one
 SELECT id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url, payment_status, created_at, paid_at, expired_at FROM "order" WHERE id = $1
 `

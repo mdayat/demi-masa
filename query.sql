@@ -14,6 +14,9 @@ WHERE id = $1;
 -- name: CreateUser :exec
 INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3);
 
+-- name: DeleteUserByID :one
+DELETE FROM "user" WHERE id = $1 RETURNING id;
+
 -- name: DecrementCouponQuota :one
 UPDATE coupon SET quota = quota - 1
 WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;
