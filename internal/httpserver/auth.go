@@ -83,15 +83,23 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 
 	logWithCtx.Info().Str("user_id", token.UID).Msg("successfully signed in")
 	respBody := struct {
-		PhoneNumber   string                 `json:"phone_number"`
+		PhoneNumber   string                 `json:"phone_number,omitempty"`
 		PhoneVerified bool                   `json:"phone_verified"`
 		AccountType   repository.AccountType `json:"account_type"`
-		ExpiredAt     string                 `json:"expired_at"`
+		UpgradedAt    string                 `json:"upgraded_at,omitempty"`
+		ExpiredAt     string                 `json:"expired_at,omitempty"`
 	}{
 		PhoneNumber:   user.PhoneNumber.String,
 		PhoneVerified: user.PhoneVerified,
 		AccountType:   user.AccountType,
-		ExpiredAt:     user.ExpiredAt.Time.String(),
+	}
+
+	if user.UpgradedAt.Valid {
+		respBody.UpgradedAt = user.UpgradedAt.Time.String()
+	}
+
+	if user.ExpiredAt.Valid {
+		respBody.ExpiredAt = user.ExpiredAt.Time.String()
 	}
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})

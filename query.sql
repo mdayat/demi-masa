@@ -24,6 +24,9 @@ WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;
 -- name: IncrementCouponQuota :exec
 UPDATE coupon SET quota = quota + 1 WHERE code = $1;
 
+-- name: GetOrders :many
+SELECT * FROM "order" WHERE payment_status = 'paid' OR (payment_status = 'unpaid' AND expired_at > NOW());
+
 -- name: GetOrderByID :one
 SELECT * FROM "order" WHERE id = $1;
 

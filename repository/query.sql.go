@@ -159,6 +159,43 @@ func (q *Queries) GetOrderByIDWithUser(ctx context.Context, id pgtype.UUID) (Get
 	return i, err
 }
 
+const getOrders = `-- name: GetOrders :many
+SELECT id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url, payment_status, created_at, paid_at, expired_at FROM "order" WHERE payment_status = 'paid' OR (payment_status = 'unpaid' AND expired_at > NOW())
+`
+
+func (q *Queries) GetOrders(ctx context.Context) ([]Order, error) {
+	rows, err := q.db.Query(ctx, getOrders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TransactionID,
+			&i.CouponCode,
+			&i.Amount,
+			&i.SubscriptionDuration,
+			&i.PaymentMethod,
+			&i.PaymentUrl,
+			&i.PaymentStatus,
+			&i.CreatedAt,
+			&i.PaidAt,
+			&i.ExpiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at, deleted_at FROM "user" WHERE id = $1
 `

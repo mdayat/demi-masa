@@ -13,7 +13,7 @@ type successResponseParams struct {
 func sendJSONSuccessResponse(res http.ResponseWriter, params successResponseParams) error {
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(params.StatusCode)
-	err := json.NewEncoder(res).Encode(&params.Data)
+	err := json.NewEncoder(res).Encode(params.Data)
 	if err != nil {
 		return err
 	}

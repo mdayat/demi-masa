@@ -26,4 +26,5 @@ func deleteUserHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
+	logWithCtx.Info().Str("user_id", userID).Msg("successfully deleted user")
 }

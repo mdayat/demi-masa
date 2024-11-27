@@ -63,7 +63,8 @@ func New() *chi.Mux {
 		r.Post("/otp/generation", generateOTPHandler)
 		r.Post("/otp/verification", verifyOTPHandler)
 
-		r.Post("/order", createOrderHandler)
+		r.Get("/orders", getOrdersHandler)
+		r.Post("/orders", createOrderHandler)
 	})
 	return router
 }
