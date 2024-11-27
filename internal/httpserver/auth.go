@@ -95,11 +95,11 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	if user.UpgradedAt.Valid {
-		respBody.UpgradedAt = user.UpgradedAt.Time.String()
+		respBody.UpgradedAt = user.UpgradedAt.Time.Format(time.RFC3339)
 	}
 
 	if user.ExpiredAt.Valid {
-		respBody.ExpiredAt = user.ExpiredAt.Time.String()
+		respBody.ExpiredAt = user.ExpiredAt.Time.Format(time.RFC3339)
 	}
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/rs/zerolog/log"
@@ -55,15 +56,15 @@ func getOrdersHandler(res http.ResponseWriter, req *http.Request) {
 			SubscriptionDuration: result[i].SubscriptionDuration,
 			PaymentMethod:        result[i].PaymentMethod,
 			PaymentStatus:        result[i].PaymentStatus,
-			CreatedAt:            result[i].CreatedAt.Time.String(),
+			CreatedAt:            result[i].CreatedAt.Time.Format(time.RFC3339),
 		}
 
 		if result[i].PaidAt.Valid {
-			order.PaidAt = result[i].PaidAt.Time.String()
+			order.PaidAt = result[i].PaidAt.Time.Format(time.RFC3339)
 		}
 
 		if result[i].ExpiredAt.Valid {
-			order.ExpiredAt = result[i].ExpiredAt.Time.String()
+			order.ExpiredAt = result[i].ExpiredAt.Time.Format(time.RFC3339)
 		}
 
 		orders = append(orders, order)
