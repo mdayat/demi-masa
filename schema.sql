@@ -1,5 +1,5 @@
-CREATE TYPE account_type AS ENUM ('free', 'premium');
-CREATE TYPE payment_status AS ENUM ('unpaid', 'paid', 'success', 'failed');
+CREATE TYPE account_type AS ENUM ('FREE', 'PREMIUM');
+CREATE TYPE transaction_status AS ENUM ('UNPAID', 'PAID', 'FAILED', 'EXPIRED', 'REFUND');
 
 CREATE TABLE "user" (
   id VARCHAR(255),
@@ -7,7 +7,7 @@ CREATE TABLE "user" (
   email VARCHAR(255) UNIQUE NOT NULL,
   phone_number VARCHAR(255) UNIQUE,
   phone_verified BOOLEAN DEFAULT FALSE NOT NULL,
-  account_type account_type DEFAULT 'free' NOT NULL,
+  account_type account_type DEFAULT 'FREE' NOT NULL,
   upgraded_at TIMESTAMPTZ,
   expired_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -25,31 +25,48 @@ CREATE TABLE coupon (
   PRIMARY KEY (code)
 );
 
-CREATE TABLE "order" (
+CREATE TABLE subscription_plan (
+  id UUID DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  price INT NOT NULL,
+  duration_in_seconds INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  deleted_at TIMESTAMPTZ,
+
+  PRIMARY KEY (id),
+  UNIQUE (name, duration_in_seconds)
+);
+
+CREATE TABLE transaction (
   id UUID,
   user_id VARCHAR(255) NOT NULL,
-  transaction_id VARCHAR(255) NOT NULL,
+  subscription_plan_id UUID NOT NULL,
+  ref_id VARCHAR(255) NOT NULL,
   coupon_code VARCHAR(255),
-  amount INT NOT NULL,
-  subscription_duration INT NOT NULL,
   payment_method VARCHAR(255) NOT NULL,
-  payment_url VARCHAR(255) NOT NULL,
-  payment_status payment_status DEFAULT 'unpaid' NOT NULL,
+  qr_url VARCHAR(255) NOT NULL,
+  status transaction_status DEFAULT 'UNPAID' NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   paid_at TIMESTAMPTZ,
   expired_at TIMESTAMPTZ,
 
   PRIMARY KEY (id),
-
+  
   CONSTRAINT fk_user
     FOREIGN KEY (user_id)
-    REFERENCES "user" (id)
+    REFERENCES "user"(id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+
+  CONSTRAINT fk_subscription_plan
+    FOREIGN KEY (subscription_plan_id)
+    REFERENCES subscription_plan(id)
     ON UPDATE CASCADE
     ON DELETE CASCADE,
 
   CONSTRAINT fk_coupon
     FOREIGN KEY (coupon_code)
-    REFERENCES coupon (code)
+    REFERENCES coupon(code)
     ON UPDATE CASCADE
     ON DELETE CASCADE
 );
