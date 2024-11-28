@@ -197,7 +197,7 @@ func (q *Queries) GetOrders(ctx context.Context) ([]Order, error) {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at, deleted_at FROM "user" WHERE id = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at FROM "user" WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -213,13 +213,12 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.UpgradedAt,
 		&i.ExpiredAt,
 		&i.CreatedAt,
-		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByPhoneNumber = `-- name: GetUserByPhoneNumber :one
-SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at, deleted_at FROM "user" WHERE phone_number = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at FROM "user" WHERE phone_number = $1
 `
 
 func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.Text) (User, error) {
@@ -235,7 +234,6 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 		&i.UpgradedAt,
 		&i.ExpiredAt,
 		&i.CreatedAt,
-		&i.DeletedAt,
 	)
 	return i, err
 }

@@ -1,4 +1,4 @@
-h1:HFVlVqild1rA1Ums/mXtRLqPEujEOTSzvHNNe1aaPMs=
+h1:S4DSg2jfmoSXOu5wOTApyGL++sxY3AIsHVOn2vChHuU=
 20241118062519_create_user_and_order_table.sql h1:i7XyrtGvXxLO28hz92jPLRwfcSJq6eyK64x6GwKtZ60=
 20241118085827_add_not_null_explicitly.sql h1:oVgC8GImdOwQJ4A68glH6R4U9f5JMTTa3KDZN9otRx0=
 20241118122822_create_coupon_table.sql h1:dXIyaMxQySxHnUGkFxFtz6Vwz+4Ussr1x98O+pla1+Q=
@@ -6,3 +6,4 @@ h1:HFVlVqild1rA1Ums/mXtRLqPEujEOTSzvHNNe1aaPMs=
 20241119121543_update_some_tables.sql h1:2j2kwugdX1Uy8RiVpbfpcMdnjuD8J7L/Jytq9QvH6Bs=
 20241123070245_update_order_and_coupon_tables.sql h1:OYzfG+ECA+OA8CI5CzcTl94R8vSxDaqyDnMQ5R6kLGI=
 20241123203748_add_column_on_order_table.sql h1:+uNWYcfXumVvSYuY55HdID4aNs/kgztOzsGiHvcsv9I=
+20241128040323_remove_user_column.sql h1:hZtbExbIE2lTMTu6QWO78nf/6UhDU1jhxDM4pYOb8r0=

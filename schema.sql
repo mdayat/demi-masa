@@ -11,7 +11,6 @@ CREATE TABLE "user" (
   upgraded_at TIMESTAMPTZ,
   expired_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-  deleted_at TIMESTAMPTZ,
 
   PRIMARY KEY (id)
 );
