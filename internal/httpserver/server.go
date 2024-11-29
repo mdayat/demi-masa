@@ -53,7 +53,7 @@ func New() *chi.Mux {
 	router.Use(middleware.Heartbeat("/ping"))
 
 	router.Post("/login", loginHandler)
-	router.Post("/order/callback", webhookHandler)
+	router.Post("/transactions/callback", tripayWebhookHandler)
 
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
@@ -63,8 +63,8 @@ func New() *chi.Mux {
 		r.Post("/otp/generation", generateOTPHandler)
 		r.Post("/otp/verification", verifyOTPHandler)
 
-		r.Get("/orders", getOrdersHandler)
-		r.Post("/orders", createOrderHandler)
+		r.Get("/transactions", getTransactionsHandler)
+		r.Post("/transactions", createTxHandler)
 	})
 	return router
 }

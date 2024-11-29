@@ -7,7 +7,7 @@ SELECT * FROM "user" WHERE phone_number = $1;
 -- name: UpdateUserPhoneNumber :exec
 UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 
--- name: UpdateUserSubscription :exec
+-- name: UpdateUserSubs :exec
 UPDATE "user" SET account_type = $2, upgraded_at = $3, expired_at = $4
 WHERE id = $1;
 
@@ -17,6 +17,9 @@ INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3);
 -- name: DeleteUserByID :one
 DELETE FROM "user" WHERE id = $1 RETURNING id;
 
+-- name: GetSubsPlanByID :one
+SELECT * FROM subscription_plan WHERE id = $1;
+
 -- name: DecrementCouponQuota :one
 UPDATE coupon SET quota = quota - 1
 WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;
@@ -24,38 +27,22 @@ WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;
 -- name: IncrementCouponQuota :exec
 UPDATE coupon SET quota = quota + 1 WHERE code = $1;
 
--- name: GetOrders :many
-SELECT * FROM "order" WHERE payment_status = 'paid' OR (payment_status = 'unpaid' AND expired_at > NOW());
+-- name: GetTransactions :many
+SELECT * FROM transaction;
 
--- name: GetOrderByID :one
-SELECT * FROM "order" WHERE id = $1;
+-- name: GetTxByID :one
+SELECT * FROM transaction WHERE id = $1;
 
--- name: GetOrderByIDWithUser :one
+-- name: GetTxWithSubsPlanByID :one
 SELECT 
-  o.id AS order_id,
-  o.payment_status,
-  o.subscription_duration,
-  u.id AS user_id,
-  u.account_type,
-  u.upgraded_at,
-  u.expired_at
-FROM "order" o JOIN "user" u ON o.user_id = u.id WHERE o.id = $1;
+  t.id AS transaction_id,
+  t.user_id,
+  s.duration_in_seconds
+FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id WHERE t.id = $1;
 
--- name: CreateOrder :exec
-INSERT INTO "order" (
-  id,
-  user_id,
-  transaction_id,
-  coupon_code,
-  amount,
-  subscription_duration,
-  payment_method,
-  payment_url,
-  expired_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+-- name: CreateTx :exec
+INSERT INTO transaction (id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7);
 
--- name: UpdateOrderStatus :exec
-UPDATE "order" SET payment_status = $2, paid_at = $3 WHERE id = $1;
-
--- name: DeleteOrderByID :exec
-DELETE FROM "order" WHERE id = $1;
+-- name: UpdateTxStatus :exec
+UPDATE transaction SET status = $2 WHERE id = $1;

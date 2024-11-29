@@ -11,43 +11,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createOrder = `-- name: CreateOrder :exec
-INSERT INTO "order" (
-  id,
-  user_id,
-  transaction_id,
-  coupon_code,
-  amount,
-  subscription_duration,
-  payment_method,
-  payment_url,
-  expired_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+const createTx = `-- name: CreateTx :exec
+INSERT INTO transaction (id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
-type CreateOrderParams struct {
-	ID                   pgtype.UUID        `json:"id"`
-	UserID               string             `json:"user_id"`
-	TransactionID        string             `json:"transaction_id"`
-	CouponCode           pgtype.Text        `json:"coupon_code"`
-	Amount               int32              `json:"amount"`
-	SubscriptionDuration int32              `json:"subscription_duration"`
-	PaymentMethod        string             `json:"payment_method"`
-	PaymentUrl           string             `json:"payment_url"`
-	ExpiredAt            pgtype.Timestamptz `json:"expired_at"`
+type CreateTxParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	UserID             string      `json:"user_id"`
+	SubscriptionPlanID pgtype.UUID `json:"subscription_plan_id"`
+	RefID              string      `json:"ref_id"`
+	CouponCode         pgtype.Text `json:"coupon_code"`
+	PaymentMethod      string      `json:"payment_method"`
+	QrUrl              string      `json:"qr_url"`
 }
 
-func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) error {
-	_, err := q.db.Exec(ctx, createOrder,
+func (q *Queries) CreateTx(ctx context.Context, arg CreateTxParams) error {
+	_, err := q.db.Exec(ctx, createTx,
 		arg.ID,
 		arg.UserID,
-		arg.TransactionID,
+		arg.SubscriptionPlanID,
+		arg.RefID,
 		arg.CouponCode,
-		arg.Amount,
-		arg.SubscriptionDuration,
 		arg.PaymentMethod,
-		arg.PaymentUrl,
-		arg.ExpiredAt,
+		arg.QrUrl,
 	)
 	return err
 }
@@ -79,15 +66,6 @@ func (q *Queries) DecrementCouponQuota(ctx context.Context, code string) (int16,
 	return quota, err
 }
 
-const deleteOrderByID = `-- name: DeleteOrderByID :exec
-DELETE FROM "order" WHERE id = $1
-`
-
-func (q *Queries) DeleteOrderByID(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteOrderByID, id)
-	return err
-}
-
 const deleteUserByID = `-- name: DeleteUserByID :one
 DELETE FROM "user" WHERE id = $1 RETURNING id
 `
@@ -98,90 +76,46 @@ func (q *Queries) DeleteUserByID(ctx context.Context, id string) (string, error)
 	return id, err
 }
 
-const getOrderByID = `-- name: GetOrderByID :one
-SELECT id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url, payment_status, created_at, paid_at, expired_at FROM "order" WHERE id = $1
+const getSubsPlanByID = `-- name: GetSubsPlanByID :one
+SELECT id, name, price, duration_in_seconds, created_at, deleted_at FROM subscription_plan WHERE id = $1
 `
 
-func (q *Queries) GetOrderByID(ctx context.Context, id pgtype.UUID) (Order, error) {
-	row := q.db.QueryRow(ctx, getOrderByID, id)
-	var i Order
+func (q *Queries) GetSubsPlanByID(ctx context.Context, id pgtype.UUID) (SubscriptionPlan, error) {
+	row := q.db.QueryRow(ctx, getSubsPlanByID, id)
+	var i SubscriptionPlan
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.TransactionID,
-		&i.CouponCode,
-		&i.Amount,
-		&i.SubscriptionDuration,
-		&i.PaymentMethod,
-		&i.PaymentUrl,
-		&i.PaymentStatus,
+		&i.Name,
+		&i.Price,
+		&i.DurationInSeconds,
 		&i.CreatedAt,
-		&i.PaidAt,
-		&i.ExpiredAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const getOrderByIDWithUser = `-- name: GetOrderByIDWithUser :one
-SELECT 
-  o.id AS order_id,
-  o.payment_status,
-  o.subscription_duration,
-  u.id AS user_id,
-  u.account_type,
-  u.upgraded_at,
-  u.expired_at
-FROM "order" o JOIN "user" u ON o.user_id = u.id WHERE o.id = $1
+const getTransactions = `-- name: GetTransactions :many
+SELECT id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, status, created_at, paid_at, expired_at FROM transaction
 `
 
-type GetOrderByIDWithUserRow struct {
-	OrderID              pgtype.UUID        `json:"order_id"`
-	PaymentStatus        PaymentStatus      `json:"payment_status"`
-	SubscriptionDuration int32              `json:"subscription_duration"`
-	UserID               string             `json:"user_id"`
-	AccountType          AccountType        `json:"account_type"`
-	UpgradedAt           pgtype.Timestamptz `json:"upgraded_at"`
-	ExpiredAt            pgtype.Timestamptz `json:"expired_at"`
-}
-
-func (q *Queries) GetOrderByIDWithUser(ctx context.Context, id pgtype.UUID) (GetOrderByIDWithUserRow, error) {
-	row := q.db.QueryRow(ctx, getOrderByIDWithUser, id)
-	var i GetOrderByIDWithUserRow
-	err := row.Scan(
-		&i.OrderID,
-		&i.PaymentStatus,
-		&i.SubscriptionDuration,
-		&i.UserID,
-		&i.AccountType,
-		&i.UpgradedAt,
-		&i.ExpiredAt,
-	)
-	return i, err
-}
-
-const getOrders = `-- name: GetOrders :many
-SELECT id, user_id, transaction_id, coupon_code, amount, subscription_duration, payment_method, payment_url, payment_status, created_at, paid_at, expired_at FROM "order" WHERE payment_status = 'paid' OR (payment_status = 'unpaid' AND expired_at > NOW())
-`
-
-func (q *Queries) GetOrders(ctx context.Context) ([]Order, error) {
-	rows, err := q.db.Query(ctx, getOrders)
+func (q *Queries) GetTransactions(ctx context.Context) ([]Transaction, error) {
+	rows, err := q.db.Query(ctx, getTransactions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Order
+	var items []Transaction
 	for rows.Next() {
-		var i Order
+		var i Transaction
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.TransactionID,
+			&i.SubscriptionPlanID,
+			&i.RefID,
 			&i.CouponCode,
-			&i.Amount,
-			&i.SubscriptionDuration,
 			&i.PaymentMethod,
-			&i.PaymentUrl,
-			&i.PaymentStatus,
+			&i.QrUrl,
+			&i.Status,
 			&i.CreatedAt,
 			&i.PaidAt,
 			&i.ExpiredAt,
@@ -194,6 +128,50 @@ func (q *Queries) GetOrders(ctx context.Context) ([]Order, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTxByID = `-- name: GetTxByID :one
+SELECT id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, status, created_at, paid_at, expired_at FROM transaction WHERE id = $1
+`
+
+func (q *Queries) GetTxByID(ctx context.Context, id pgtype.UUID) (Transaction, error) {
+	row := q.db.QueryRow(ctx, getTxByID, id)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.SubscriptionPlanID,
+		&i.RefID,
+		&i.CouponCode,
+		&i.PaymentMethod,
+		&i.QrUrl,
+		&i.Status,
+		&i.CreatedAt,
+		&i.PaidAt,
+		&i.ExpiredAt,
+	)
+	return i, err
+}
+
+const getTxWithSubsPlanByID = `-- name: GetTxWithSubsPlanByID :one
+SELECT 
+  t.id AS transaction_id,
+  t.user_id,
+  s.duration_in_seconds
+FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id WHERE t.id = $1
+`
+
+type GetTxWithSubsPlanByIDRow struct {
+	TransactionID     pgtype.UUID `json:"transaction_id"`
+	UserID            string      `json:"user_id"`
+	DurationInSeconds int32       `json:"duration_in_seconds"`
+}
+
+func (q *Queries) GetTxWithSubsPlanByID(ctx context.Context, id pgtype.UUID) (GetTxWithSubsPlanByIDRow, error) {
+	row := q.db.QueryRow(ctx, getTxWithSubsPlanByID, id)
+	var i GetTxWithSubsPlanByIDRow
+	err := row.Scan(&i.TransactionID, &i.UserID, &i.DurationInSeconds)
+	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
@@ -247,18 +225,17 @@ func (q *Queries) IncrementCouponQuota(ctx context.Context, code string) error {
 	return err
 }
 
-const updateOrderStatus = `-- name: UpdateOrderStatus :exec
-UPDATE "order" SET payment_status = $2, paid_at = $3 WHERE id = $1
+const updateTxStatus = `-- name: UpdateTxStatus :exec
+UPDATE transaction SET status = $2 WHERE id = $1
 `
 
-type UpdateOrderStatusParams struct {
-	ID            pgtype.UUID        `json:"id"`
-	PaymentStatus PaymentStatus      `json:"payment_status"`
-	PaidAt        pgtype.Timestamptz `json:"paid_at"`
+type UpdateTxStatusParams struct {
+	ID     pgtype.UUID       `json:"id"`
+	Status TransactionStatus `json:"status"`
 }
 
-func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
-	_, err := q.db.Exec(ctx, updateOrderStatus, arg.ID, arg.PaymentStatus, arg.PaidAt)
+func (q *Queries) UpdateTxStatus(ctx context.Context, arg UpdateTxStatusParams) error {
+	_, err := q.db.Exec(ctx, updateTxStatus, arg.ID, arg.Status)
 	return err
 }
 
@@ -277,20 +254,20 @@ func (q *Queries) UpdateUserPhoneNumber(ctx context.Context, arg UpdateUserPhone
 	return err
 }
 
-const updateUserSubscription = `-- name: UpdateUserSubscription :exec
+const updateUserSubs = `-- name: UpdateUserSubs :exec
 UPDATE "user" SET account_type = $2, upgraded_at = $3, expired_at = $4
 WHERE id = $1
 `
 
-type UpdateUserSubscriptionParams struct {
+type UpdateUserSubsParams struct {
 	ID          string             `json:"id"`
 	AccountType AccountType        `json:"account_type"`
 	UpgradedAt  pgtype.Timestamptz `json:"upgraded_at"`
 	ExpiredAt   pgtype.Timestamptz `json:"expired_at"`
 }
 
-func (q *Queries) UpdateUserSubscription(ctx context.Context, arg UpdateUserSubscriptionParams) error {
-	_, err := q.db.Exec(ctx, updateUserSubscription,
+func (q *Queries) UpdateUserSubs(ctx context.Context, arg UpdateUserSubsParams) error {
+	_, err := q.db.Exec(ctx, updateUserSubs,
 		arg.ID,
 		arg.AccountType,
 		arg.UpgradedAt,

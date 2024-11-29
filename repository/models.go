@@ -14,8 +14,8 @@ import (
 type AccountType string
 
 const (
-	AccountTypeFree    AccountType = "free"
-	AccountTypePremium AccountType = "premium"
+	AccountTypeFREE    AccountType = "FREE"
+	AccountTypePREMIUM AccountType = "PREMIUM"
 )
 
 func (e *AccountType) Scan(src interface{}) error {
@@ -53,48 +53,49 @@ func (ns NullAccountType) Value() (driver.Value, error) {
 	return string(ns.AccountType), nil
 }
 
-type PaymentStatus string
+type TransactionStatus string
 
 const (
-	PaymentStatusUnpaid  PaymentStatus = "unpaid"
-	PaymentStatusPaid    PaymentStatus = "paid"
-	PaymentStatusSuccess PaymentStatus = "success"
-	PaymentStatusFailed  PaymentStatus = "failed"
+	TransactionStatusUNPAID  TransactionStatus = "UNPAID"
+	TransactionStatusPAID    TransactionStatus = "PAID"
+	TransactionStatusFAILED  TransactionStatus = "FAILED"
+	TransactionStatusEXPIRED TransactionStatus = "EXPIRED"
+	TransactionStatusREFUND  TransactionStatus = "REFUND"
 )
 
-func (e *PaymentStatus) Scan(src interface{}) error {
+func (e *TransactionStatus) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = PaymentStatus(s)
+		*e = TransactionStatus(s)
 	case string:
-		*e = PaymentStatus(s)
+		*e = TransactionStatus(s)
 	default:
-		return fmt.Errorf("unsupported scan type for PaymentStatus: %T", src)
+		return fmt.Errorf("unsupported scan type for TransactionStatus: %T", src)
 	}
 	return nil
 }
 
-type NullPaymentStatus struct {
-	PaymentStatus PaymentStatus `json:"payment_status"`
-	Valid         bool          `json:"valid"` // Valid is true if PaymentStatus is not NULL
+type NullTransactionStatus struct {
+	TransactionStatus TransactionStatus `json:"transaction_status"`
+	Valid             bool              `json:"valid"` // Valid is true if TransactionStatus is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullPaymentStatus) Scan(value interface{}) error {
+func (ns *NullTransactionStatus) Scan(value interface{}) error {
 	if value == nil {
-		ns.PaymentStatus, ns.Valid = "", false
+		ns.TransactionStatus, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.PaymentStatus.Scan(value)
+	return ns.TransactionStatus.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullPaymentStatus) Value() (driver.Value, error) {
+func (ns NullTransactionStatus) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.PaymentStatus), nil
+	return string(ns.TransactionStatus), nil
 }
 
 type Coupon struct {
@@ -105,19 +106,27 @@ type Coupon struct {
 	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
 }
 
-type Order struct {
-	ID                   pgtype.UUID        `json:"id"`
-	UserID               string             `json:"user_id"`
-	TransactionID        string             `json:"transaction_id"`
-	CouponCode           pgtype.Text        `json:"coupon_code"`
-	Amount               int32              `json:"amount"`
-	SubscriptionDuration int32              `json:"subscription_duration"`
-	PaymentMethod        string             `json:"payment_method"`
-	PaymentUrl           string             `json:"payment_url"`
-	PaymentStatus        PaymentStatus      `json:"payment_status"`
-	CreatedAt            pgtype.Timestamptz `json:"created_at"`
-	PaidAt               pgtype.Timestamptz `json:"paid_at"`
-	ExpiredAt            pgtype.Timestamptz `json:"expired_at"`
+type SubscriptionPlan struct {
+	ID                pgtype.UUID        `json:"id"`
+	Name              string             `json:"name"`
+	Price             int32              `json:"price"`
+	DurationInSeconds int32              `json:"duration_in_seconds"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	DeletedAt         pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type Transaction struct {
+	ID                 pgtype.UUID        `json:"id"`
+	UserID             string             `json:"user_id"`
+	SubscriptionPlanID pgtype.UUID        `json:"subscription_plan_id"`
+	RefID              string             `json:"ref_id"`
+	CouponCode         pgtype.Text        `json:"coupon_code"`
+	PaymentMethod      string             `json:"payment_method"`
+	QrUrl              string             `json:"qr_url"`
+	Status             TransactionStatus  `json:"status"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	PaidAt             pgtype.Timestamptz `json:"paid_at"`
+	ExpiredAt          pgtype.Timestamptz `json:"expired_at"`
 }
 
 type User struct {

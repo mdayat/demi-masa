@@ -5,7 +5,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mdayat/demi-masa-be/internal/config"
 	"github.com/mdayat/demi-masa-be/internal/services"
-	"github.com/mdayat/demi-masa-be/internal/task"
 	"github.com/mdayat/demi-masa-be/repository"
 )
 
@@ -25,7 +24,6 @@ func New() (*asynq.Server, *asynq.ServeMux) {
 
 	mux := asynq.NewServeMux()
 	mux.Use(logger)
-	mux.HandleFunc(task.TypeOrderCleanup, handleCleanupOrder)
 
 	return asynqServer, mux
 }
