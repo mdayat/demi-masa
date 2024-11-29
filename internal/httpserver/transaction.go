@@ -281,6 +281,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+	logWithCtx.Info().Str("merchant_ref", merchantRefString).Msg("successfully created tripay transaction")
 
 	if resp.Success {
 		var data tripayTxData
@@ -315,6 +316,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+		logWithCtx.Info().Str("transaction_id", merchantRefString).Msg("successfully created transaction")
 
 		respBody := struct {
 			QrURL string `json:"qr_url"`

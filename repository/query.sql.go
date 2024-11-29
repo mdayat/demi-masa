@@ -39,8 +39,8 @@ func (q *Queries) CreateTx(ctx context.Context, arg CreateTxParams) error {
 	return err
 }
 
-const createUser = `-- name: CreateUser :exec
-INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)
+const createUser = `-- name: CreateUser :one
+INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at
 `
 
 type CreateUserParams struct {
@@ -49,9 +49,21 @@ type CreateUserParams struct {
 	Email string `json:"email"`
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
-	_, err := q.db.Exec(ctx, createUser, arg.ID, arg.Name, arg.Email)
-	return err
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.Name, arg.Email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.PhoneNumber,
+		&i.PhoneVerified,
+		&i.AccountType,
+		&i.UpgradedAt,
+		&i.ExpiredAt,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const decrementCouponQuota = `-- name: DecrementCouponQuota :one

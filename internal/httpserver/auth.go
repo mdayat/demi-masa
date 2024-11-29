@@ -25,18 +25,19 @@ type idTokenClaims struct {
 
 func loginHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
-	body := struct {
-		IDToken string `json:"id_token"`
-	}{}
+	var body struct {
+		IDToken string `json:"id_token" validate:"required,jwt"`
+	}
 
-	err := json.NewDecoder(req.Body).Decode(&body)
+	err := decodeAndValidateJSONBody(req, &body)
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("invalid json body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
-	token, err := firebaseAuth.VerifyIDToken(context.Background(), body.IDToken)
+	ctx := context.Background()
+	token, err := firebaseAuth.VerifyIDToken(ctx, body.IDToken)
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("invalid id token")
 		http.Error(res, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
@@ -52,36 +53,37 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	ctx := context.Background()
 	user, err := queries.GetUserByID(ctx, token.UID)
 	if err != nil && errors.Is(err, pgx.ErrNoRows) == false {
 		logWithCtx.Error().Err(err).Str("user_id", token.UID).Msg("failed to get user by id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
 	logWithCtx.Info().Str("user_id", token.UID).Msg("successfully get user by id")
+	statusCode := http.StatusOK
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
-		user := repository.CreateUserParams{
-			ID:    token.UID,
-			Name:  idTokenClaims.Name,
-			Email: idTokenClaims.Email,
-		}
+		user, err = queries.CreateUser(
+			ctx,
+			repository.CreateUserParams{
+				ID:    token.UID,
+				Name:  idTokenClaims.Name,
+				Email: idTokenClaims.Email,
+			},
+		)
 
-		err = queries.CreateUser(ctx, user)
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to create new user")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		logWithCtx.Info().Str("user_id", token.UID).Msg("successfully created new user")
 
+		logWithCtx.Info().Str("user_id", token.UID).Msg("successfully created new user")
 		res.Header().Set("Location", fmt.Sprintf("/users/%s", user.ID))
-		res.WriteHeader(http.StatusCreated)
-		return
+		statusCode = http.StatusCreated
 	}
 
-	logWithCtx.Info().Str("user_id", token.UID).Msg("successfully signed in")
 	respBody := struct {
 		PhoneNumber   string                 `json:"phone_number,omitempty"`
 		PhoneVerified bool                   `json:"phone_verified"`
@@ -100,9 +102,27 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 
 	if user.ExpiredAt.Valid {
 		respBody.ExpiredAt = user.ExpiredAt.Time.Format(time.RFC3339)
+		if user.ExpiredAt.Time.Unix() < time.Now().Unix() {
+			err = queries.UpdateUserSubs(
+				ctx,
+				repository.UpdateUserSubsParams{
+					ID:          user.ID,
+					AccountType: repository.AccountTypeFREE,
+					UpgradedAt:  pgtype.Timestamptz{},
+					ExpiredAt:   pgtype.Timestamptz{},
+				},
+			)
+
+			if err != nil {
+				logWithCtx.Error().Err(err).Msg("failed to update user subscription")
+				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			log.Info().Str("user_id", user.ID).Msg("successfully updated user subscription")
+		}
 	}
 
-	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: statusCode, Data: respBody})
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("failed to send json success response")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

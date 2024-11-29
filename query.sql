@@ -11,8 +11,8 @@ UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 UPDATE "user" SET account_type = $2, upgraded_at = $3, expired_at = $4
 WHERE id = $1;
 
--- name: CreateUser :exec
-INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3);
+-- name: CreateUser :one
+INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: DeleteUserByID :one
 DELETE FROM "user" WHERE id = $1 RETURNING id;
