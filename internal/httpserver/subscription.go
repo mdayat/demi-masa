@@ -10,11 +10,11 @@ import (
 )
 
 type subscriptionPlan struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	Price             int    `json:"price"`
-	DurationInSeconds int    `json:"duration_in_seconds"`
-	CreatedAt         string `json:"created_at"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Price            int    `json:"price"`
+	DurationInMonths int    `json:"duration_in_months"`
+	CreatedAt        string `json:"created_at"`
 }
 
 func getSubsPlansHandler(res http.ResponseWriter, req *http.Request) {
@@ -40,11 +40,11 @@ func getSubsPlansHandler(res http.ResponseWriter, req *http.Request) {
 		}
 
 		subsPlan := subscriptionPlan{
-			ID:                fmt.Sprintf("%s", subsPlanID),
-			Name:              result[i].Name,
-			Price:             int(result[i].Price),
-			DurationInSeconds: int(result[i].DurationInSeconds),
-			CreatedAt:         result[i].CreatedAt.Time.Format(time.RFC3339),
+			ID:               fmt.Sprintf("%s", subsPlanID),
+			Name:             result[i].Name,
+			Price:            int(result[i].Price),
+			DurationInMonths: int(result[i].DurationInMonths),
+			CreatedAt:        result[i].CreatedAt.Time.Format(time.RFC3339),
 		}
 
 		subsPlans = append(subsPlans, subsPlan)

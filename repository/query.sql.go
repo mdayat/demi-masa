@@ -91,7 +91,7 @@ func (q *Queries) DeleteUserByID(ctx context.Context, id string) (string, error)
 }
 
 const getSubsPlanByID = `-- name: GetSubsPlanByID :one
-SELECT id, name, price, duration_in_seconds, created_at, deleted_at FROM subscription_plan WHERE id = $1
+SELECT id, name, price, duration_in_months, created_at, deleted_at FROM subscription_plan WHERE id = $1
 `
 
 func (q *Queries) GetSubsPlanByID(ctx context.Context, id pgtype.UUID) (SubscriptionPlan, error) {
@@ -101,7 +101,7 @@ func (q *Queries) GetSubsPlanByID(ctx context.Context, id pgtype.UUID) (Subscrip
 		&i.ID,
 		&i.Name,
 		&i.Price,
-		&i.DurationInSeconds,
+		&i.DurationInMonths,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
@@ -109,7 +109,7 @@ func (q *Queries) GetSubsPlanByID(ctx context.Context, id pgtype.UUID) (Subscrip
 }
 
 const getSubsPlans = `-- name: GetSubsPlans :many
-SELECT id, name, price, duration_in_seconds, created_at, deleted_at FROM subscription_plan WHERE deleted_at IS NULL
+SELECT id, name, price, duration_in_months, created_at, deleted_at FROM subscription_plan WHERE deleted_at IS NULL
 `
 
 func (q *Queries) GetSubsPlans(ctx context.Context) ([]SubscriptionPlan, error) {
@@ -125,7 +125,7 @@ func (q *Queries) GetSubsPlans(ctx context.Context) ([]SubscriptionPlan, error) 
 			&i.ID,
 			&i.Name,
 			&i.Price,
-			&i.DurationInSeconds,
+			&i.DurationInMonths,
 			&i.CreatedAt,
 			&i.DeletedAt,
 		); err != nil {
@@ -202,20 +202,20 @@ const getTxWithSubsPlanByID = `-- name: GetTxWithSubsPlanByID :one
 SELECT 
   t.id AS transaction_id,
   t.user_id,
-  s.duration_in_seconds
+  s.duration_in_months
 FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id WHERE t.id = $1
 `
 
 type GetTxWithSubsPlanByIDRow struct {
-	TransactionID     pgtype.UUID `json:"transaction_id"`
-	UserID            string      `json:"user_id"`
-	DurationInSeconds int32       `json:"duration_in_seconds"`
+	TransactionID    pgtype.UUID `json:"transaction_id"`
+	UserID           string      `json:"user_id"`
+	DurationInMonths int16       `json:"duration_in_months"`
 }
 
 func (q *Queries) GetTxWithSubsPlanByID(ctx context.Context, id pgtype.UUID) (GetTxWithSubsPlanByIDRow, error) {
 	row := q.db.QueryRow(ctx, getTxWithSubsPlanByID, id)
 	var i GetTxWithSubsPlanByIDRow
-	err := row.Scan(&i.TransactionID, &i.UserID, &i.DurationInSeconds)
+	err := row.Scan(&i.TransactionID, &i.UserID, &i.DurationInMonths)
 	return i, err
 }
 

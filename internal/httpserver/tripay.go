@@ -263,12 +263,13 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		log.Info().Str("transaction_id", body.MerchantRef).Msg("successfully get transaction with subscription plan by id")
 
+		secondsInMonth := time.Hour.Seconds() * 24 * 30
 		err = updateTxAndUser(
 			ctx,
 			&updateTxAndUserParams{
 				txID:         merchantRefBytes,
 				userID:       tx.UserID,
-				subsDuration: int64(tx.DurationInSeconds),
+				subsDuration: int64(secondsInMonth) * int64(tx.DurationInMonths),
 				paidAt:       body.PaidAt,
 			},
 		)

@@ -40,7 +40,7 @@ SELECT * FROM transaction WHERE id = $1;
 SELECT 
   t.id AS transaction_id,
   t.user_id,
-  s.duration_in_seconds
+  s.duration_in_months
 FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id WHERE t.id = $1;
 
 -- name: CreateTx :exec

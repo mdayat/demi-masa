@@ -29,12 +29,12 @@ CREATE TABLE subscription_plan (
   id UUID DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   price INT NOT NULL,
-  duration_in_seconds INT NOT NULL,
+  duration_in_months SMALLINT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   deleted_at TIMESTAMPTZ,
 
   PRIMARY KEY (id),
-  UNIQUE (name, duration_in_seconds)
+  UNIQUE (name, duration_in_months)
 );
 
 CREATE TABLE transaction (

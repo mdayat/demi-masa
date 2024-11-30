@@ -107,12 +107,12 @@ type Coupon struct {
 }
 
 type SubscriptionPlan struct {
-	ID                pgtype.UUID        `json:"id"`
-	Name              string             `json:"name"`
-	Price             int32              `json:"price"`
-	DurationInSeconds int32              `json:"duration_in_seconds"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	DeletedAt         pgtype.Timestamptz `json:"deleted_at"`
+	ID               pgtype.UUID        `json:"id"`
+	Name             string             `json:"name"`
+	Price            int32              `json:"price"`
+	DurationInMonths int16              `json:"duration_in_months"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type Transaction struct {
