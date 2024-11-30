@@ -41,8 +41,8 @@ SELECT
 FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id WHERE t.id = $1;
 
 -- name: CreateTx :exec
-INSERT INTO transaction (id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url)
-VALUES ($1, $2, $3, $4, $5, $6, $7);
+INSERT INTO transaction (id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, expired_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: UpdateTxStatus :exec
-UPDATE transaction SET status = $2 WHERE id = $1;
+UPDATE transaction SET status = $2, paid_at = $3 WHERE id = $1;

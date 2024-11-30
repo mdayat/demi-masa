@@ -252,17 +252,19 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 	merchantRef := uuid.New()
 	merchantRefString := merchantRef.String()
 	signature := createTripayTxSig(merchantRefString, int(subsPlan.Price))
+	oneHourExpiration := time.Now().Unix() + int64(time.Hour.Seconds())
 
 	params := createTripayTxParams{
-		Signature:     signature,
 		Method:        QRIS_PAYMENT_METHOD,
 		MerchantRef:   merchantRefString,
 		Amount:        int(subsPlan.Price),
 		CustomerName:  body.CustomerName,
 		CustomerEmail: body.CustomerEmail,
 		CustomerPhone: body.CustomerPhone,
+		Signature:     signature,
+		ExpiredTime:   int(oneHourExpiration),
 		OrderItems: []tripayOrderItem{
-			tripayOrderItem{
+			{
 				SubscriptionPlanID: body.SubscriptionPlanID,
 				Name:               subsPlan.Name,
 				Price:              int(subsPlan.Price),
@@ -281,9 +283,9 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Str("merchant_ref", merchantRefString).Msg("successfully created tripay transaction")
 
 	if resp.Success {
+		logWithCtx.Info().Str("merchant_ref", merchantRefString).Msg("successfully created tripay transaction")
 		var data tripayTxData
 		err = json.Unmarshal(resp.Data, &data)
 		if err != nil {
@@ -305,6 +307,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			CouponCode:         couponCode,
 			PaymentMethod:      QRIS_PAYMENT_METHOD,
 			QrUrl:              fmt.Sprintf("%s", data.QrURL),
+			ExpiredAt:          pgtype.Timestamptz{Time: time.Unix(oneHourExpiration, 0), Valid: true},
 		})
 
 		if err != nil {
@@ -334,7 +337,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			shouldRollbackQuota = true
 		}
 
-		logWithCtx.Error().Err(errors.Wrap(err, resp.Message)).Msg("failed to create tripay transaction")
+		logWithCtx.Error().Err(errors.New(resp.Message)).Msg("failed to create tripay transaction")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

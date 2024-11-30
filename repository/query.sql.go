@@ -12,18 +12,19 @@ import (
 )
 
 const createTx = `-- name: CreateTx :exec
-INSERT INTO transaction (id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO transaction (id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, expired_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type CreateTxParams struct {
-	ID                 pgtype.UUID `json:"id"`
-	UserID             string      `json:"user_id"`
-	SubscriptionPlanID pgtype.UUID `json:"subscription_plan_id"`
-	RefID              string      `json:"ref_id"`
-	CouponCode         pgtype.Text `json:"coupon_code"`
-	PaymentMethod      string      `json:"payment_method"`
-	QrUrl              string      `json:"qr_url"`
+	ID                 pgtype.UUID        `json:"id"`
+	UserID             string             `json:"user_id"`
+	SubscriptionPlanID pgtype.UUID        `json:"subscription_plan_id"`
+	RefID              string             `json:"ref_id"`
+	CouponCode         pgtype.Text        `json:"coupon_code"`
+	PaymentMethod      string             `json:"payment_method"`
+	QrUrl              string             `json:"qr_url"`
+	ExpiredAt          pgtype.Timestamptz `json:"expired_at"`
 }
 
 func (q *Queries) CreateTx(ctx context.Context, arg CreateTxParams) error {
@@ -35,6 +36,7 @@ func (q *Queries) CreateTx(ctx context.Context, arg CreateTxParams) error {
 		arg.CouponCode,
 		arg.PaymentMethod,
 		arg.QrUrl,
+		arg.ExpiredAt,
 	)
 	return err
 }
@@ -238,16 +240,17 @@ func (q *Queries) IncrementCouponQuota(ctx context.Context, code string) error {
 }
 
 const updateTxStatus = `-- name: UpdateTxStatus :exec
-UPDATE transaction SET status = $2 WHERE id = $1
+UPDATE transaction SET status = $2, paid_at = $3 WHERE id = $1
 `
 
 type UpdateTxStatusParams struct {
-	ID     pgtype.UUID       `json:"id"`
-	Status TransactionStatus `json:"status"`
+	ID     pgtype.UUID        `json:"id"`
+	Status TransactionStatus  `json:"status"`
+	PaidAt pgtype.Timestamptz `json:"paid_at"`
 }
 
 func (q *Queries) UpdateTxStatus(ctx context.Context, arg UpdateTxStatusParams) error {
-	_, err := q.db.Exec(ctx, updateTxStatus, arg.ID, arg.Status)
+	_, err := q.db.Exec(ctx, updateTxStatus, arg.ID, arg.Status, arg.PaidAt)
 	return err
 }
 

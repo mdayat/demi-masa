@@ -21,7 +21,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const QRIS_PAYMENT_METHOD = "QRIS"
+const QRIS_PAYMENT_METHOD = "QRIS_SHOPEEPAY"
 
 type tripayAPIResp struct {
 	Success bool            `json:"success"`
@@ -45,6 +45,7 @@ type createTripayTxParams struct {
 	CustomerPhone string            `json:"customer_phone"`
 	OrderItems    []tripayOrderItem `json:"order_items"`
 	Signature     string            `json:"signature"`
+	ExpiredTime   int               `json:"expired_time"`
 }
 
 type tripayTxData struct {
@@ -126,6 +127,7 @@ type updateTxAndUserParams struct {
 	txID         [16]byte
 	userID       string
 	subsDuration int64
+	paidAt       int
 }
 
 func updateTxAndUser(ctx context.Context, params *updateTxAndUserParams) error {
@@ -140,6 +142,7 @@ func updateTxAndUser(ctx context.Context, params *updateTxAndUserParams) error {
 		repository.UpdateTxStatusParams{
 			ID:     pgtype.UUID{Bytes: params.txID, Valid: true},
 			Status: repository.TransactionStatusPAID,
+			PaidAt: pgtype.Timestamptz{Time: time.Unix(int64(params.paidAt), 0), Valid: true},
 		},
 	)
 
@@ -265,6 +268,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 				txID:         merchantRefBytes,
 				userID:       tx.UserID,
 				subsDuration: int64(tx.DurationInSeconds),
+				paidAt:       body.PaidAt,
 			},
 		)
 
@@ -287,18 +291,6 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			Str("transaction_status", body.Status).
 			Str("user_id", tx.UserID).
 			Msg("successfully updated transaction status and user subscription")
-
-		respBody := struct {
-			Status bool `json:"status"`
-		}{
-			Status: true,
-		}
-
-		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
-		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to send json success response")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
 	} else if body.Status == string(repository.TransactionStatusEXPIRED) || body.Status == string(repository.TransactionStatusREFUND) {
 		tx, err := queries.GetTxByID(ctx, pgtype.UUID{Bytes: merchantRefBytes, Valid: true})
 		if err != nil {
@@ -374,7 +366,17 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			Str("transaction_id", body.MerchantRef).
 			Str("transaction_status", body.Status).
 			Msg("")
+	}
 
-		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	respBody := struct {
+		Status bool `json:"status"`
+	}{
+		Status: true,
+	}
+
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to send json success response")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
