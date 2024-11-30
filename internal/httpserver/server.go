@@ -65,6 +65,8 @@ func New() *chi.Mux {
 
 		r.Get("/transactions", getTransactionsHandler)
 		r.Post("/transactions", createTxHandler)
+
+		r.Get("/subscription-plans", getSubsPlansHandler)
 	})
 	return router
 }

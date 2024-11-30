@@ -17,7 +17,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type Transaction struct {
+type transaction struct {
 	ID                 string                       `json:"id"`
 	UserID             string                       `json:"user_id"`
 	SubscriptionPlanID string                       `json:"subscription_plan_id"`
@@ -44,7 +44,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Msg("successfully get transactions")
 
 	resultLen := len(result)
-	transactions := make([]Transaction, 0, resultLen)
+	transactions := make([]transaction, 0, resultLen)
 	for i := 0; i < resultLen; i++ {
 		transactionID, err := result[i].ID.Value()
 		if err != nil {
@@ -60,7 +60,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		transaction := Transaction{
+		transaction := transaction{
 			ID:                 fmt.Sprintf("%s", transactionID),
 			UserID:             result[i].UserID,
 			SubscriptionPlanID: fmt.Sprintf("%s", subsPlanID),
@@ -84,7 +84,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	respBody := struct {
-		Transactions []Transaction `json:"transactions"`
+		Transactions []transaction `json:"transactions"`
 	}{
 		Transactions: transactions,
 	}

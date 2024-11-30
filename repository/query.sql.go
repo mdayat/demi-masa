@@ -108,6 +108,37 @@ func (q *Queries) GetSubsPlanByID(ctx context.Context, id pgtype.UUID) (Subscrip
 	return i, err
 }
 
+const getSubsPlans = `-- name: GetSubsPlans :many
+SELECT id, name, price, duration_in_seconds, created_at, deleted_at FROM subscription_plan WHERE deleted_at IS NULL
+`
+
+func (q *Queries) GetSubsPlans(ctx context.Context) ([]SubscriptionPlan, error) {
+	rows, err := q.db.Query(ctx, getSubsPlans)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SubscriptionPlan
+	for rows.Next() {
+		var i SubscriptionPlan
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Price,
+			&i.DurationInSeconds,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTransactions = `-- name: GetTransactions :many
 SELECT id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, status, created_at, paid_at, expired_at FROM transaction
 `

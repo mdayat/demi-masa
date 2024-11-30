@@ -17,6 +17,9 @@ INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING *;
 -- name: DeleteUserByID :one
 DELETE FROM "user" WHERE id = $1 RETURNING id;
 
+-- name: GetSubsPlans :many
+SELECT * FROM subscription_plan WHERE deleted_at IS NULL;
+
 -- name: GetSubsPlanByID :one
 SELECT * FROM subscription_plan WHERE id = $1;
 
