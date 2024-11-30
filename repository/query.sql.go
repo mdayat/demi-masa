@@ -139,42 +139,6 @@ func (q *Queries) GetSubsPlans(ctx context.Context) ([]SubscriptionPlan, error) 
 	return items, nil
 }
 
-const getTransactions = `-- name: GetTransactions :many
-SELECT id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, status, created_at, paid_at, expired_at FROM transaction
-`
-
-func (q *Queries) GetTransactions(ctx context.Context) ([]Transaction, error) {
-	rows, err := q.db.Query(ctx, getTransactions)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Transaction
-	for rows.Next() {
-		var i Transaction
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.SubscriptionPlanID,
-			&i.RefID,
-			&i.CouponCode,
-			&i.PaymentMethod,
-			&i.QrUrl,
-			&i.Status,
-			&i.CreatedAt,
-			&i.PaidAt,
-			&i.ExpiredAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getTxByID = `-- name: GetTxByID :one
 SELECT id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, status, created_at, paid_at, expired_at FROM transaction WHERE id = $1
 `
@@ -196,6 +160,60 @@ func (q *Queries) GetTxByID(ctx context.Context, id pgtype.UUID) (Transaction, e
 		&i.ExpiredAt,
 	)
 	return i, err
+}
+
+const getTxByUserID = `-- name: GetTxByUserID :many
+SELECT
+  t.id AS transaction_id,
+  t.status,
+  t.qr_url,
+  t.created_at,
+  t.paid_at,
+  t.expired_at,
+  s.price,
+  s.duration_in_months
+FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id
+WHERE t.user_id = $1 AND (paid_at IS NOT NULL OR (status = 'UNPAID' AND expired_at > NOW()))
+`
+
+type GetTxByUserIDRow struct {
+	TransactionID    pgtype.UUID        `json:"transaction_id"`
+	Status           TransactionStatus  `json:"status"`
+	QrUrl            string             `json:"qr_url"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	PaidAt           pgtype.Timestamptz `json:"paid_at"`
+	ExpiredAt        pgtype.Timestamptz `json:"expired_at"`
+	Price            int32              `json:"price"`
+	DurationInMonths int16              `json:"duration_in_months"`
+}
+
+func (q *Queries) GetTxByUserID(ctx context.Context, userID string) ([]GetTxByUserIDRow, error) {
+	rows, err := q.db.Query(ctx, getTxByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTxByUserIDRow
+	for rows.Next() {
+		var i GetTxByUserIDRow
+		if err := rows.Scan(
+			&i.TransactionID,
+			&i.Status,
+			&i.QrUrl,
+			&i.CreatedAt,
+			&i.PaidAt,
+			&i.ExpiredAt,
+			&i.Price,
+			&i.DurationInMonths,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTxWithSubsPlanByID = `-- name: GetTxWithSubsPlanByID :one

@@ -18,58 +18,46 @@ import (
 )
 
 type transaction struct {
-	ID                 string                       `json:"id"`
-	UserID             string                       `json:"user_id"`
-	SubscriptionPlanID string                       `json:"subscription_plan_id"`
-	RefID              string                       `json:"ref_id"`
-	CouponCode         string                       `json:"coupon_code"`
-	PaymentMethod      string                       `json:"payment_method"`
-	QrUrl              string                       `json:"qr_url"`
-	Status             repository.TransactionStatus `json:"status"`
-	CreatedAt          string                       `json:"created_at"`
-	PaidAt             string                       `json:"paid_at"`
-	ExpiredAt          string                       `json:"expired_at"`
+	ID               string                       `json:"id"`
+	Status           repository.TransactionStatus `json:"status"`
+	QrUrl            string                       `json:"qr_url"`
+	CreatedAt        string                       `json:"created_at"`
+	PaidAt           string                       `json:"paid_at"`
+	ExpiredAt        string                       `json:"expired_at"`
+	Price            int                          `json:"price"`
+	DurationInMonths int                          `json:"duration_in_months"`
 }
 
 func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	ctx := context.Background()
+	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
 
-	result, err := queries.GetTransactions(ctx)
+	result, err := queries.GetTxByUserID(ctx, userID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get transactions")
+		logWithCtx.Error().Err(err).Str("user_id", userID).Msg("failed to get transactions by user id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully get transactions")
+	logWithCtx.Info().Str("user_id", userID).Msg("successfully get transactions by user id")
 
 	resultLen := len(result)
 	transactions := make([]transaction, 0, resultLen)
 	for i := 0; i < resultLen; i++ {
-		transactionID, err := result[i].ID.Value()
+		transactionID, err := result[i].TransactionID.Value()
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to get transaction pgtype.UUID value")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		subsPlanID, err := result[i].SubscriptionPlanID.Value()
-		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to get subscription plan pgtype.UUID value")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
 		transaction := transaction{
-			ID:                 fmt.Sprintf("%s", transactionID),
-			UserID:             result[i].UserID,
-			SubscriptionPlanID: fmt.Sprintf("%s", subsPlanID),
-			RefID:              result[i].RefID,
-			CouponCode:         result[i].CouponCode.String,
-			PaymentMethod:      result[i].PaymentMethod,
-			QrUrl:              result[i].QrUrl,
-			Status:             result[i].Status,
-			CreatedAt:          result[i].CreatedAt.Time.Format(time.RFC3339),
+			ID:               fmt.Sprintf("%s", transactionID),
+			Status:           result[i].Status,
+			QrUrl:            result[i].QrUrl,
+			CreatedAt:        result[i].CreatedAt.Time.Format(time.RFC3339),
+			Price:            int(result[i].Price),
+			DurationInMonths: int(result[i].DurationInMonths),
 		}
 
 		if result[i].PaidAt.Valid {

@@ -30,8 +30,18 @@ WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;
 -- name: IncrementCouponQuota :exec
 UPDATE coupon SET quota = quota + 1 WHERE code = $1;
 
--- name: GetTransactions :many
-SELECT * FROM transaction;
+-- name: GetTxByUserID :many
+SELECT
+  t.id AS transaction_id,
+  t.status,
+  t.qr_url,
+  t.created_at,
+  t.paid_at,
+  t.expired_at,
+  s.price,
+  s.duration_in_months
+FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id
+WHERE t.user_id = $1 AND (paid_at IS NOT NULL OR (status = 'UNPAID' AND expired_at > NOW()));
 
 -- name: GetTxByID :one
 SELECT * FROM transaction WHERE id = $1;

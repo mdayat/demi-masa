@@ -150,12 +150,11 @@ func updateTxAndUser(ctx context.Context, params *updateTxAndUserParams) error {
 		return errors.Wrap(err, "failed to update transaction status")
 	}
 
-	upgradedAt := time.Now()
-	expiredAt := time.Unix(upgradedAt.Unix()+params.subsDuration, 0)
+	expiredAt := time.Unix(int64(params.paidAt)+params.subsDuration, 0)
 	err = qtx.UpdateUserSubs(ctx, repository.UpdateUserSubsParams{
 		ID:          params.userID,
 		AccountType: repository.AccountTypePREMIUM,
-		UpgradedAt:  pgtype.Timestamptz{Time: upgradedAt, Valid: true},
+		UpgradedAt:  pgtype.Timestamptz{Time: time.Unix(int64(params.paidAt), 0), Valid: true},
 		ExpiredAt:   pgtype.Timestamptz{Time: expiredAt, Valid: true},
 	})
 
