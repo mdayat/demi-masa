@@ -41,7 +41,7 @@ SELECT
   s.price,
   s.duration_in_months
 FROM transaction t JOIN subscription_plan s ON t.subscription_plan_id = s.id
-WHERE t.user_id = $1 AND (paid_at IS NOT NULL OR (status = 'UNPAID' AND expired_at > NOW()));
+WHERE t.user_id = $1 AND (status = 'PAID' OR (status = 'UNPAID' AND expired_at > NOW()));
 
 -- name: GetTxByID :one
 SELECT * FROM transaction WHERE id = $1;
