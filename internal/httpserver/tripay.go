@@ -248,6 +248,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// update transaction status and user subscription
 	if body.Status == string(repository.TransactionStatusPAID) {
 		tx, err := queries.GetTxWithSubsPlanByID(ctx, pgtype.UUID{Bytes: merchantRefBytes, Valid: true})
 		if err != nil {
@@ -291,7 +292,10 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			Str("transaction_status", body.Status).
 			Str("user_id", tx.UserID).
 			Msg("successfully updated transaction status and user subscription")
-	} else if body.Status == string(repository.TransactionStatusEXPIRED) || body.Status == string(repository.TransactionStatusREFUND) {
+	}
+
+	// update transaction status and rollback coupon quota
+	if body.Status != string(repository.TransactionStatusPAID) {
 		tx, err := queries.GetTxByID(ctx, pgtype.UUID{Bytes: merchantRefBytes, Valid: true})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -305,11 +309,25 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		log.Info().Str("transaction_id", body.MerchantRef).Msg("successfully get transaction by id")
 
+		// check for unknown status
+		txStatus := body.Status
+		if body.Status != string(repository.TransactionStatusREFUND) &&
+			body.Status != string(repository.TransactionStatusEXPIRED) &&
+			body.Status != string(repository.TransactionStatusFAILED) {
+			txStatus = string(repository.TransactionStatusFAILED)
+			log.
+				Error().
+				Err(errors.New("unknown tripay transaction status")).
+				Str("transaction_id", body.MerchantRef).
+				Str("transaction_status", body.Status).
+				Msg("")
+		}
+
 		err = updateTxAndRollbackCoupon(
 			ctx,
 			&updateTxAndRollbackCouponParams{
 				txID:       merchantRefBytes,
-				txStatus:   body.Status,
+				txStatus:   txStatus,
 				couponCode: tx.CouponCode,
 			},
 		)
@@ -333,39 +351,6 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			Str("transaction_status", body.Status).
 			Str("coupon_code", tx.CouponCode.String).
 			Msg("successfully updated transaction status and/or rollback coupon quota")
-	} else if body.Status == string(repository.TransactionStatusFAILED) {
-		err = queries.UpdateTxStatus(
-			ctx,
-			repository.UpdateTxStatusParams{
-				ID:     pgtype.UUID{Bytes: merchantRefBytes, Valid: true},
-				Status: repository.TransactionStatusFAILED,
-			},
-		)
-
-		if err != nil {
-			logWithCtx.
-				Error().
-				Err(err).
-				Str("transaction_id", body.MerchantRef).
-				Str("transaction_status", body.Status).
-				Msg("failed to update transaction status")
-
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		log.
-			Info().
-			Str("transaction_id", body.MerchantRef).
-			Str("transaction_status", body.Status).
-			Msg("successfully updated transaction status")
-	} else {
-		log.
-			Error().
-			Err(errors.New("unknown tripay transaction status")).
-			Str("transaction_id", body.MerchantRef).
-			Str("transaction_status", body.Status).
-			Msg("")
 	}
 
 	respBody := struct {
