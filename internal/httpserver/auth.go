@@ -88,38 +88,10 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 		PhoneNumber   string                 `json:"phone_number,omitempty"`
 		PhoneVerified bool                   `json:"phone_verified"`
 		AccountType   repository.AccountType `json:"account_type"`
-		UpgradedAt    string                 `json:"upgraded_at,omitempty"`
-		ExpiredAt     string                 `json:"expired_at,omitempty"`
 	}{
 		PhoneNumber:   user.PhoneNumber.String,
 		PhoneVerified: user.PhoneVerified,
 		AccountType:   user.AccountType,
-	}
-
-	if user.UpgradedAt.Valid {
-		respBody.UpgradedAt = user.UpgradedAt.Time.Format(time.RFC3339)
-	}
-
-	if user.ExpiredAt.Valid {
-		respBody.ExpiredAt = user.ExpiredAt.Time.Format(time.RFC3339)
-		if user.ExpiredAt.Time.Unix() < time.Now().Unix() {
-			err = queries.UpdateUserSubs(
-				ctx,
-				repository.UpdateUserSubsParams{
-					ID:          user.ID,
-					AccountType: repository.AccountTypeFREE,
-					UpgradedAt:  pgtype.Timestamptz{},
-					ExpiredAt:   pgtype.Timestamptz{},
-				},
-			)
-
-			if err != nil {
-				logWithCtx.Error().Err(err).Msg("failed to update user subscription")
-				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			log.Info().Str("user_id", user.ID).Msg("successfully updated user subscription")
-		}
 	}
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: statusCode, Data: respBody})

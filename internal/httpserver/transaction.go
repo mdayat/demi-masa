@@ -70,13 +70,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 		transactions = append(transactions, transaction)
 	}
 
-	respBody := struct {
-		Transactions []transaction `json:"transactions"`
-	}{
-		Transactions: transactions,
-	}
-
-	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &transactions})
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("failed to send json success response")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -323,7 +317,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			respBody.Price = int(math.Round(float64(respBody.Price) * 0.7))
 		}
 
-		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: respBody})
+		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: &respBody})
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to send json success response")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

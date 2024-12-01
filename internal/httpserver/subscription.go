@@ -50,13 +50,7 @@ func getSubsPlansHandler(res http.ResponseWriter, req *http.Request) {
 		subsPlans = append(subsPlans, subsPlan)
 	}
 
-	respBody := struct {
-		SubscriptionPlans []subscriptionPlan `json:"subscription_plans"`
-	}{
-		SubscriptionPlans: subsPlans,
-	}
-
-	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &subsPlans})
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("failed to send json success response")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
