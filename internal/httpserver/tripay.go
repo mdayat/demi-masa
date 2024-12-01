@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mdayat/demi-masa-be/internal/config"
+	"github.com/mdayat/demi-masa-be/internal/task"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -130,10 +132,14 @@ type updateTxAndUserParams struct {
 	paidAt       int
 }
 
+// this function do three things:
+// 1. update transaction status
+// 2. update user subscription to PREMIUM
+// 3. create task queue to downgrade user
 func updateTxAndUser(ctx context.Context, params *updateTxAndUserParams) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to start db transaction to update transaction status and user subscription")
+		return errors.Wrap(err, "failed to start db transaction to update transaction status and user subscription to PREMIUM")
 	}
 
 	qtx := queries.WithTx(tx)
@@ -150,21 +156,28 @@ func updateTxAndUser(ctx context.Context, params *updateTxAndUserParams) error {
 		return errors.Wrap(err, "failed to update transaction status")
 	}
 
-	expiredAt := time.Unix(int64(params.paidAt)+params.subsDuration, 0)
 	err = qtx.UpdateUserSubs(ctx, repository.UpdateUserSubsParams{
 		ID:          params.userID,
 		AccountType: repository.AccountTypePREMIUM,
-		UpgradedAt:  pgtype.Timestamptz{Time: time.Unix(int64(params.paidAt), 0), Valid: true},
-		ExpiredAt:   pgtype.Timestamptz{Time: expiredAt, Valid: true},
 	})
 
 	if err != nil {
-		return errors.Wrap(err, "failed to update user subscription")
+		return errors.Wrap(err, "failed to update user subscription to PREMIUM")
+	}
+
+	asynqTask, err := task.NewUserDowngradeTask(task.UserDowngradePayload{UserID: params.userID})
+	if err != nil {
+		return errors.Wrap(err, "failed to create user downgrade task")
+	}
+
+	_, err = asynqClient.Enqueue(asynqTask, asynq.ProcessIn(time.Duration(params.subsDuration)*time.Second))
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue user downgrade task")
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to commit db transaction to update transaction status and user subscription")
+		return errors.Wrap(err, "failed to commit db transaction to update transaction status and user subscription to PREMIUM")
 	}
 
 	return nil
@@ -280,7 +293,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 				Str("transaction_id", body.MerchantRef).
 				Str("transaction_status", body.Status).
 				Str("user_id", tx.UserID).
-				Msg("failed to update transaction status and user subscription")
+				Msg("failed to update transaction status and user subscription to PREMIUM")
 
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -291,7 +304,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			Str("transaction_id", body.MerchantRef).
 			Str("transaction_status", body.Status).
 			Str("user_id", tx.UserID).
-			Msg("successfully updated transaction status and user subscription")
+			Msg("successfully updated transaction status and user subscription to PREMIUM")
 	}
 
 	// update transaction status and rollback coupon quota

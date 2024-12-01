@@ -313,10 +313,6 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			ExpiredAt:        expiredAt.Format(time.RFC3339),
 		}
 
-		if couponCode.Valid {
-			respBody.Price = int(math.Round(float64(respBody.Price) * 0.7))
-		}
-
 		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: &respBody})
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to send json success response")
