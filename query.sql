@@ -8,8 +8,7 @@ SELECT * FROM "user" WHERE phone_number = $1;
 UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 
 -- name: UpdateUserSubs :exec
-UPDATE "user" SET account_type = $2, upgraded_at = $3, expired_at = $4
-WHERE id = $1;
+UPDATE "user" SET account_type = $2 WHERE id = $1;
 
 -- name: CreateUser :one
 INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING *;

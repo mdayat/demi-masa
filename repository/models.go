@@ -136,7 +136,5 @@ type User struct {
 	PhoneNumber   pgtype.Text        `json:"phone_number"`
 	PhoneVerified bool               `json:"phone_verified"`
 	AccountType   AccountType        `json:"account_type"`
-	UpgradedAt    pgtype.Timestamptz `json:"upgraded_at"`
-	ExpiredAt     pgtype.Timestamptz `json:"expired_at"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }

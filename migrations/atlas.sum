@@ -1,4 +1,5 @@
-h1:qhch1Sk4fECFJOcFahKSSwXp2uPm6uVhZGvScXrJsU4=
+h1:ov8Hre8tEz45WdFnNzw1vq/ltu7TA8iQ9rsiMyRn8xg=
 20241128070503_initial.sql h1:fw5RyuBc+tSz8AWcJvfODEBD7HNLw3fizTx+g2I982Q=
 20241130084219_change_subscription_duration.sql h1:VCpHp6g7UIbb+lslTDc13Prts5uPkOzuyxj+Rl4ILxs=
 20241201050414_update_transaction_table_constraint.sql h1:BjWK6R5gJQIot1+oylafXjuebDC50WYJDh5clceJeOU=
+20241201071314_remove_some_columns_on_user_table.sql h1:TUU4iMzfiYimW6/tq97WSkr5xeZb32iPaOfWaWe9ITM=

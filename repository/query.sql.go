@@ -42,7 +42,7 @@ func (q *Queries) CreateTx(ctx context.Context, arg CreateTxParams) error {
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at
+INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, phone_number, phone_verified, account_type, created_at
 `
 
 type CreateUserParams struct {
@@ -61,8 +61,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PhoneNumber,
 		&i.PhoneVerified,
 		&i.AccountType,
-		&i.UpgradedAt,
-		&i.ExpiredAt,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -238,7 +236,7 @@ func (q *Queries) GetTxWithSubsPlanByID(ctx context.Context, id pgtype.UUID) (Ge
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at FROM "user" WHERE id = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, created_at FROM "user" WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -251,15 +249,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.PhoneNumber,
 		&i.PhoneVerified,
 		&i.AccountType,
-		&i.UpgradedAt,
-		&i.ExpiredAt,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getUserByPhoneNumber = `-- name: GetUserByPhoneNumber :one
-SELECT id, name, email, phone_number, phone_verified, account_type, upgraded_at, expired_at, created_at FROM "user" WHERE phone_number = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, created_at FROM "user" WHERE phone_number = $1
 `
 
 func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.Text) (User, error) {
@@ -272,8 +268,6 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 		&i.PhoneNumber,
 		&i.PhoneVerified,
 		&i.AccountType,
-		&i.UpgradedAt,
-		&i.ExpiredAt,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -319,23 +313,15 @@ func (q *Queries) UpdateUserPhoneNumber(ctx context.Context, arg UpdateUserPhone
 }
 
 const updateUserSubs = `-- name: UpdateUserSubs :exec
-UPDATE "user" SET account_type = $2, upgraded_at = $3, expired_at = $4
-WHERE id = $1
+UPDATE "user" SET account_type = $2 WHERE id = $1
 `
 
 type UpdateUserSubsParams struct {
-	ID          string             `json:"id"`
-	AccountType AccountType        `json:"account_type"`
-	UpgradedAt  pgtype.Timestamptz `json:"upgraded_at"`
-	ExpiredAt   pgtype.Timestamptz `json:"expired_at"`
+	ID          string      `json:"id"`
+	AccountType AccountType `json:"account_type"`
 }
 
 func (q *Queries) UpdateUserSubs(ctx context.Context, arg UpdateUserSubsParams) error {
-	_, err := q.db.Exec(ctx, updateUserSubs,
-		arg.ID,
-		arg.AccountType,
-		arg.UpgradedAt,
-		arg.ExpiredAt,
-	)
+	_, err := q.db.Exec(ctx, updateUserSubs, arg.ID, arg.AccountType)
 	return err
 }

@@ -8,8 +8,6 @@ CREATE TABLE "user" (
   phone_number VARCHAR(255) UNIQUE,
   phone_verified BOOLEAN DEFAULT FALSE NOT NULL,
   account_type account_type DEFAULT 'FREE' NOT NULL,
-  upgraded_at TIMESTAMPTZ,
-  expired_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
 
   PRIMARY KEY (id)
