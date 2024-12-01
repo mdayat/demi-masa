@@ -33,9 +33,9 @@ UPDATE coupon SET quota = quota + 1 WHERE code = $1;
 -- name: GetTxByUserID :many
 SELECT
   t.id AS transaction_id,
+  t.coupon_code,
   t.status,
   t.qr_url,
-  t.created_at,
   t.paid_at,
   t.expired_at,
   s.price,

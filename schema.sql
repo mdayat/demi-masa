@@ -48,7 +48,7 @@ CREATE TABLE transaction (
   status transaction_status DEFAULT 'UNPAID' NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   paid_at TIMESTAMPTZ,
-  expired_at TIMESTAMPTZ,
+  expired_at TIMESTAMPTZ NOT NULL,
 
   PRIMARY KEY (id),
   

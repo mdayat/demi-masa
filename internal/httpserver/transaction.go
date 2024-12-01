@@ -21,7 +21,6 @@ type transaction struct {
 	ID               string                       `json:"id"`
 	Status           repository.TransactionStatus `json:"status"`
 	QrUrl            string                       `json:"qr_url"`
-	CreatedAt        string                       `json:"created_at"`
 	PaidAt           string                       `json:"paid_at"`
 	ExpiredAt        string                       `json:"expired_at"`
 	Price            int                          `json:"price"`
@@ -55,17 +54,17 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 			ID:               fmt.Sprintf("%s", transactionID),
 			Status:           result[i].Status,
 			QrUrl:            result[i].QrUrl,
-			CreatedAt:        result[i].CreatedAt.Time.Format(time.RFC3339),
 			Price:            int(result[i].Price),
 			DurationInMonths: int(result[i].DurationInMonths),
+			ExpiredAt:        result[i].ExpiredAt.Time.Format(time.RFC3339),
+		}
+
+		if result[i].CouponCode.Valid {
+			transaction.Price = int(math.Round(float64(transaction.Price) * 0.7))
 		}
 
 		if result[i].PaidAt.Valid {
 			transaction.PaidAt = result[i].PaidAt.Time.Format(time.RFC3339)
-		}
-
-		if result[i].ExpiredAt.Valid {
-			transaction.ExpiredAt = result[i].ExpiredAt.Time.Format(time.RFC3339)
 		}
 
 		transactions = append(transactions, transaction)
@@ -287,6 +286,8 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 		}
 
 		userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+		expiredAt := time.Unix(oneHourExpiration, 0)
+
 		err = queries.CreateTx(ctx, repository.CreateTxParams{
 			ID:                 pgtype.UUID{Bytes: merchantRef, Valid: true},
 			UserID:             userID,
@@ -295,7 +296,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			CouponCode:         couponCode,
 			PaymentMethod:      QRIS_PAYMENT_METHOD,
 			QrUrl:              fmt.Sprintf("%s", data.QrURL),
-			ExpiredAt:          pgtype.Timestamptz{Time: time.Unix(oneHourExpiration, 0), Valid: true},
+			ExpiredAt:          pgtype.Timestamptz{Time: expiredAt, Valid: true},
 		})
 
 		if err != nil {
@@ -309,10 +310,17 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 		}
 		logWithCtx.Info().Str("transaction_id", merchantRefString).Msg("successfully created transaction")
 
-		respBody := struct {
-			QrURL string `json:"qr_url"`
-		}{
-			QrURL: data.QrURL,
+		respBody := transaction{
+			ID:               fmt.Sprintf("%s", merchantRefString),
+			Status:           repository.TransactionStatusUNPAID,
+			QrUrl:            data.QrURL,
+			Price:            int(subsPlan.Price),
+			DurationInMonths: int(subsPlan.DurationInMonths),
+			ExpiredAt:        expiredAt.Format(time.RFC3339),
+		}
+
+		if couponCode.Valid {
+			respBody.Price = int(math.Round(float64(respBody.Price) * 0.7))
 		}
 
 		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: respBody})

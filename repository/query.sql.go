@@ -165,9 +165,9 @@ func (q *Queries) GetTxByID(ctx context.Context, id pgtype.UUID) (Transaction, e
 const getTxByUserID = `-- name: GetTxByUserID :many
 SELECT
   t.id AS transaction_id,
+  t.coupon_code,
   t.status,
   t.qr_url,
-  t.created_at,
   t.paid_at,
   t.expired_at,
   s.price,
@@ -178,9 +178,9 @@ WHERE t.user_id = $1 AND (status = 'PAID' OR (status = 'UNPAID' AND expired_at >
 
 type GetTxByUserIDRow struct {
 	TransactionID    pgtype.UUID        `json:"transaction_id"`
+	CouponCode       pgtype.Text        `json:"coupon_code"`
 	Status           TransactionStatus  `json:"status"`
 	QrUrl            string             `json:"qr_url"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	PaidAt           pgtype.Timestamptz `json:"paid_at"`
 	ExpiredAt        pgtype.Timestamptz `json:"expired_at"`
 	Price            int32              `json:"price"`
@@ -198,9 +198,9 @@ func (q *Queries) GetTxByUserID(ctx context.Context, userID string) ([]GetTxByUs
 		var i GetTxByUserIDRow
 		if err := rows.Scan(
 			&i.TransactionID,
+			&i.CouponCode,
 			&i.Status,
 			&i.QrUrl,
-			&i.CreatedAt,
 			&i.PaidAt,
 			&i.ExpiredAt,
 			&i.Price,
