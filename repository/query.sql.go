@@ -42,7 +42,7 @@ func (q *Queries) CreateTx(ctx context.Context, arg CreateTxParams) error {
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, phone_number, phone_verified, account_type, created_at
+INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING id, name, email, phone_number, phone_verified, account_type, time_zone, created_at
 `
 
 type CreateUserParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PhoneNumber,
 		&i.PhoneVerified,
 		&i.AccountType,
+		&i.TimeZone,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -236,7 +237,7 @@ func (q *Queries) GetTxWithSubsPlanByID(ctx context.Context, id pgtype.UUID) (Ge
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, phone_number, phone_verified, account_type, created_at FROM "user" WHERE id = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, time_zone, created_at FROM "user" WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -249,13 +250,14 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.PhoneNumber,
 		&i.PhoneVerified,
 		&i.AccountType,
+		&i.TimeZone,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getUserByPhoneNumber = `-- name: GetUserByPhoneNumber :one
-SELECT id, name, email, phone_number, phone_verified, account_type, created_at FROM "user" WHERE phone_number = $1
+SELECT id, name, email, phone_number, phone_verified, account_type, time_zone, created_at FROM "user" WHERE phone_number = $1
 `
 
 func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.Text) (User, error) {
@@ -268,9 +270,51 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 		&i.PhoneNumber,
 		&i.PhoneVerified,
 		&i.AccountType,
+		&i.TimeZone,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getUsersByTimeZone = `-- name: GetUsersByTimeZone :many
+SELECT
+  u.id,
+  u.phone_number,
+  u.account_type,
+  u.time_zone
+FROM "user" u WHERE u.time_zone = $1
+`
+
+type GetUsersByTimeZoneRow struct {
+	ID          string                `json:"id"`
+	PhoneNumber pgtype.Text           `json:"phone_number"`
+	AccountType AccountType           `json:"account_type"`
+	TimeZone    NullIndonesiaTimeZone `json:"time_zone"`
+}
+
+func (q *Queries) GetUsersByTimeZone(ctx context.Context, timeZone NullIndonesiaTimeZone) ([]GetUsersByTimeZoneRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByTimeZone, timeZone)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUsersByTimeZoneRow
+	for rows.Next() {
+		var i GetUsersByTimeZoneRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PhoneNumber,
+			&i.AccountType,
+			&i.TimeZone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const incrementCouponQuota = `-- name: IncrementCouponQuota :exec

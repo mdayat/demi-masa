@@ -4,6 +4,14 @@ SELECT * FROM "user" WHERE id = $1;
 -- name: GetUserByPhoneNumber :one
 SELECT * FROM "user" WHERE phone_number = $1;
 
+-- name: GetUsersByTimeZone :many
+SELECT
+  u.id,
+  u.phone_number,
+  u.account_type,
+  u.time_zone
+FROM "user" u WHERE u.time_zone = $1;
+
 -- name: UpdateUserPhoneNumber :exec
 UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 

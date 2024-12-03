@@ -1,5 +1,6 @@
 CREATE TYPE account_type AS ENUM ('FREE', 'PREMIUM');
 CREATE TYPE transaction_status AS ENUM ('UNPAID', 'PAID', 'FAILED', 'EXPIRED', 'REFUND');
+CREATE TYPE indonesia_time_zone AS ENUM ('Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura');
 
 CREATE TABLE "user" (
   id VARCHAR(255),
@@ -8,6 +9,7 @@ CREATE TABLE "user" (
   phone_number VARCHAR(255) UNIQUE,
   phone_verified BOOLEAN DEFAULT FALSE NOT NULL,
   account_type account_type DEFAULT 'FREE' NOT NULL,
+  time_zone indonesia_time_zone,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
 
   PRIMARY KEY (id)

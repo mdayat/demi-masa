@@ -53,6 +53,49 @@ func (ns NullAccountType) Value() (driver.Value, error) {
 	return string(ns.AccountType), nil
 }
 
+type IndonesiaTimeZone string
+
+const (
+	IndonesiaTimeZoneAsiaJakarta  IndonesiaTimeZone = "Asia/Jakarta"
+	IndonesiaTimeZoneAsiaMakassar IndonesiaTimeZone = "Asia/Makassar"
+	IndonesiaTimeZoneAsiaJayapura IndonesiaTimeZone = "Asia/Jayapura"
+)
+
+func (e *IndonesiaTimeZone) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = IndonesiaTimeZone(s)
+	case string:
+		*e = IndonesiaTimeZone(s)
+	default:
+		return fmt.Errorf("unsupported scan type for IndonesiaTimeZone: %T", src)
+	}
+	return nil
+}
+
+type NullIndonesiaTimeZone struct {
+	IndonesiaTimeZone IndonesiaTimeZone `json:"indonesia_time_zone"`
+	Valid             bool              `json:"valid"` // Valid is true if IndonesiaTimeZone is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullIndonesiaTimeZone) Scan(value interface{}) error {
+	if value == nil {
+		ns.IndonesiaTimeZone, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.IndonesiaTimeZone.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullIndonesiaTimeZone) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.IndonesiaTimeZone), nil
+}
+
 type TransactionStatus string
 
 const (
@@ -130,11 +173,12 @@ type Transaction struct {
 }
 
 type User struct {
-	ID            string             `json:"id"`
-	Name          string             `json:"name"`
-	Email         string             `json:"email"`
-	PhoneNumber   pgtype.Text        `json:"phone_number"`
-	PhoneVerified bool               `json:"phone_verified"`
-	AccountType   AccountType        `json:"account_type"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ID            string                `json:"id"`
+	Name          string                `json:"name"`
+	Email         string                `json:"email"`
+	PhoneNumber   pgtype.Text           `json:"phone_number"`
+	PhoneVerified bool                  `json:"phone_verified"`
+	AccountType   AccountType           `json:"account_type"`
+	TimeZone      NullIndonesiaTimeZone `json:"time_zone"`
+	CreatedAt     pgtype.Timestamptz    `json:"created_at"`
 }
