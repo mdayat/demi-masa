@@ -10,16 +10,14 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
+	"github.com/hibiken/asynq"
+	"github.com/mdayat/demi-masa-be/internal/services"
+	"github.com/mdayat/demi-masa-be/internal/task"
+	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
 )
 
-type PrayerCalendar struct {
-	Subuh  int64
-	Zuhur  int64
-	Asar   int64
-	Magrib int64
-	Isya   int64
-}
+type PrayerCalendar map[string]int64
 
 var (
 	WIBPrayerCalendar  []PrayerCalendar
@@ -28,6 +26,11 @@ var (
 	WIBTimeZone        = "Asia/Jakarta"
 	WITTimeZone        = "Asia/Makassar"
 	WITATimeZone       = "Asia/Jayapura"
+	SubuhPrayerName    = "Subuh"
+	ZuhurPrayerName    = "Zuhur"
+	AsarPrayerName     = "Asar"
+	MagribPrayerName   = "Magrib"
+	IsyaPrayerName     = "Isya"
 )
 
 type aladhanAPIResp struct {
@@ -59,9 +62,9 @@ func parsePrayerTime(location *time.Location, timestamp int64, timeValue string)
 	return &prayerTime, nil
 }
 
-func ParseAladhanPrayerCalendar(prayerCalendar *[]aladhanPrayerCalendar, location *time.Location, timeZone string) (*[]PrayerCalendar, error) {
-	parsedPrayerCalendar := make([]PrayerCalendar, len(*prayerCalendar))
-	for i, prayer := range *prayerCalendar {
+func ParseAladhanPrayerCalendar(prayerCalendar []aladhanPrayerCalendar, location *time.Location, timeZone string) ([]PrayerCalendar, error) {
+	parsedPrayerCalendar := make([]PrayerCalendar, len(prayerCalendar))
+	for i, prayer := range prayerCalendar {
 		timestamp, err := strconv.ParseInt(prayer.Date.TimestampStr, 10, 64)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to parse unix timestamp string to int64")
@@ -92,22 +95,24 @@ func ParseAladhanPrayerCalendar(prayerCalendar *[]aladhanPrayerCalendar, locatio
 			return nil, errors.Wrap(err, "failed to parse isya prayer time")
 		}
 
-		parsedPrayerCalendar[i].Subuh = subuh.Unix()
-		parsedPrayerCalendar[i].Zuhur = zuhur.Unix()
-		parsedPrayerCalendar[i].Asar = asar.Unix()
-		parsedPrayerCalendar[i].Magrib = magrib.Unix()
-		parsedPrayerCalendar[i].Isya = isya.Unix()
+		parsedPrayerCalendar[i] = PrayerCalendar{
+			SubuhPrayerName:  subuh.Unix(),
+			ZuhurPrayerName:  zuhur.Unix(),
+			AsarPrayerName:   asar.Unix(),
+			MagribPrayerName: magrib.Unix(),
+			IsyaPrayerName:   isya.Unix(),
+		}
 	}
 
-	return &parsedPrayerCalendar, nil
+	return parsedPrayerCalendar, nil
 }
 
-func GetAladhanPrayerCalendar(url string) (*[]aladhanPrayerCalendar, error) {
+func GetAladhanPrayerCalendar(url string) ([]aladhanPrayerCalendar, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	body, err := retry.DoWithData(
-		func() (*[]aladhanPrayerCalendar, error) {
+		func() ([]aladhanPrayerCalendar, error) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create new request")
@@ -142,7 +147,7 @@ func GetAladhanPrayerCalendar(url string) (*[]aladhanPrayerCalendar, error) {
 				return nil, errors.Wrap(err, "failed to unmarshal successful http get request")
 			}
 
-			return &data, nil
+			return data, nil
 		},
 		retry.Attempts(3),
 		retry.Context(ctx),
@@ -185,11 +190,93 @@ func InitPrayerCalendar(timeZone string) error {
 	}
 
 	if timeZone == WIBTimeZone {
-		WIBPrayerCalendar = *parsedPrayerCalendar
+		WIBPrayerCalendar = parsedPrayerCalendar
 	} else if timeZone == WITTimeZone {
-		WITPrayerCalendar = *parsedPrayerCalendar
+		WITPrayerCalendar = parsedPrayerCalendar
 	} else {
-		WITAPrayerCalendar = *parsedPrayerCalendar
+		WITAPrayerCalendar = parsedPrayerCalendar
+	}
+
+	return nil
+}
+
+type nextPrayer struct {
+	Name string
+	Time time.Time
+}
+
+func GetNextPrayer(now *time.Time, prayerCalendar []PrayerCalendar) *nextPrayer {
+	nowTimestamp := now.Unix()
+	currentDay := now.Day()
+	todayPrayer := prayerCalendar[currentDay-1]
+
+	var nextPrayer nextPrayer
+	for key, timestamp := range todayPrayer {
+		if timestamp > nowTimestamp {
+			nextPrayer.Name = key
+			nextPrayer.Time = time.Unix(timestamp, 0)
+			break
+		}
+	}
+
+	if nextPrayer.Name == "" {
+		currentDay++
+		tomorrowPrayer := prayerCalendar[currentDay-1]
+		nextPrayer.Name = SubuhPrayerName
+		nextPrayer.Time = time.Unix(tomorrowPrayer[SubuhPrayerName], 0)
+	}
+
+	return &nextPrayer
+}
+
+func ScheduleUserPrayer(duration *time.Duration, payload task.UserPrayerPayload) error {
+	asynqTask, err := task.NewUserPrayerTask(payload)
+	if err != nil {
+		return errors.Wrap(err, "failed to create user prayer task")
+	}
+
+	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(*duration))
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue user prayer task")
+	}
+
+	return nil
+}
+
+func InitUserPrayer(prayerCalendar []PrayerCalendar, timeZone string) error {
+	users, err := services.GetQueries().GetUsersByTimeZone(
+		context.TODO(),
+		repository.NullIndonesiaTimeZone{
+			IndonesiaTimeZone: repository.IndonesiaTimeZone(timeZone),
+			Valid:             true,
+		},
+	)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to get users by time zone")
+	}
+
+	location, err := time.LoadLocation(timeZone)
+	if err != nil {
+		return errors.Wrap(err, "failed to load time zone location")
+	}
+
+	for _, user := range users {
+		now := time.Now().In(location)
+		nextPrayer := GetNextPrayer(&now, prayerCalendar)
+
+		duration := nextPrayer.Time.Sub(now)
+		err = ScheduleUserPrayer(
+			&duration,
+			task.UserPrayerPayload{
+				UserID:     user.ID,
+				PrayerName: nextPrayer.Name,
+			},
+		)
+
+		if err != nil {
+			return errors.Wrap(err, "failed to schedule user prayer")
+		}
 	}
 
 	return nil

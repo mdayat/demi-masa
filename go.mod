@@ -4,6 +4,7 @@ go 1.23.3
 
 require (
 	firebase.google.com/go/v4 v4.15.0
+	github.com/avast/retry-go/v4 v4.6.0
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.14.1

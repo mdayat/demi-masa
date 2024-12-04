@@ -276,6 +276,27 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 	return i, err
 }
 
+const getUserPrayerByID = `-- name: GetUserPrayerByID :one
+SELECT
+  u.phone_number,
+  u.account_type,
+  u.time_zone
+FROM "user" u WHERE u.id = $1
+`
+
+type GetUserPrayerByIDRow struct {
+	PhoneNumber pgtype.Text           `json:"phone_number"`
+	AccountType AccountType           `json:"account_type"`
+	TimeZone    NullIndonesiaTimeZone `json:"time_zone"`
+}
+
+func (q *Queries) GetUserPrayerByID(ctx context.Context, id string) (GetUserPrayerByIDRow, error) {
+	row := q.db.QueryRow(ctx, getUserPrayerByID, id)
+	var i GetUserPrayerByIDRow
+	err := row.Scan(&i.PhoneNumber, &i.AccountType, &i.TimeZone)
+	return i, err
+}
+
 const getUsersByTimeZone = `-- name: GetUsersByTimeZone :many
 SELECT
   u.id,

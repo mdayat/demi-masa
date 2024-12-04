@@ -1,6 +1,13 @@
 -- name: GetUserByID :one
 SELECT * FROM "user" WHERE id = $1;
 
+-- name: GetUserPrayerByID :one
+SELECT
+  u.phone_number,
+  u.account_type,
+  u.time_zone
+FROM "user" u WHERE u.id = $1;
+
 -- name: GetUserByPhoneNumber :one
 SELECT * FROM "user" WHERE phone_number = $1;
 

@@ -23,6 +23,9 @@ func main() {
 	}
 	defer db.Close()
 
+	services.InitTwilio(config.Env.TWILIO_ACCOUNT_SID, config.Env.TWILIO_AUTH_TOKEN)
+	services.InitAsynq(config.Env.REDIS_URL)
+
 	server, mux := workerserver.New()
 	if err := server.Run(mux); err != nil {
 		log.Fatal().Stack().Err(err).Msg("failed to run asynq server")
