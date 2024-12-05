@@ -19,6 +19,9 @@ SELECT
   u.time_zone
 FROM "user" u WHERE u.time_zone = $1;
 
+-- name: GetUserPhoneByID :one
+SELECT u.phone_number FROM "user" u WHERE u.id = $1;
+
 -- name: UpdateUserPhoneNumber :exec
 UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 

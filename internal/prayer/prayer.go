@@ -17,7 +17,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-type PrayerCalendar map[string]int64
+type Prayer struct {
+	Name      string
+	Timestamp int64
+}
+
+type PrayerCalendar [6]Prayer
 
 var (
 	WIBPrayerCalendar  []PrayerCalendar
@@ -31,6 +36,7 @@ var (
 	AsarPrayerName     = "Asar"
 	MagribPrayerName   = "Magrib"
 	IsyaPrayerName     = "Isya"
+	SunriseTimeName    = "Sunrise"
 )
 
 type aladhanAPIResp struct {
@@ -41,6 +47,7 @@ type aladhanAPIResp struct {
 type aladhanPrayerCalendar struct {
 	Timings struct {
 		Fajr    string `json:"Fajr"`
+		Sunrise string `json:"Sunrise"`
 		Dhuhr   string `json:"Dhuhr"`
 		Asr     string `json:"Asr"`
 		Maghrib string `json:"Maghrib"`
@@ -70,9 +77,25 @@ func ParseAladhanPrayerCalendar(prayerCalendar []aladhanPrayerCalendar, location
 			return nil, errors.Wrap(err, "failed to parse unix timestamp string to int64")
 		}
 
+		var prayers [6]Prayer
 		subuh, err := parsePrayerTime(location, timestamp, prayer.Timings.Fajr)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to parse subuh prayer time")
+		}
+
+		prayers[0] = Prayer{
+			Name:      SubuhPrayerName,
+			Timestamp: subuh.Unix(),
+		}
+
+		sunrise, err := parsePrayerTime(location, timestamp, prayer.Timings.Sunrise)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to parse sunrise prayer time")
+		}
+
+		prayers[1] = Prayer{
+			Name:      SunriseTimeName,
+			Timestamp: sunrise.Unix(),
 		}
 
 		zuhur, err := parsePrayerTime(location, timestamp, prayer.Timings.Dhuhr)
@@ -80,9 +103,19 @@ func ParseAladhanPrayerCalendar(prayerCalendar []aladhanPrayerCalendar, location
 			return nil, errors.Wrap(err, "failed to parse zuhur prayer time")
 		}
 
+		prayers[2] = Prayer{
+			Name:      ZuhurPrayerName,
+			Timestamp: zuhur.Unix(),
+		}
+
 		asar, err := parsePrayerTime(location, timestamp, prayer.Timings.Asr)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to parse asar prayer time")
+		}
+
+		prayers[3] = Prayer{
+			Name:      AsarPrayerName,
+			Timestamp: asar.Unix(),
 		}
 
 		magrib, err := parsePrayerTime(location, timestamp, prayer.Timings.Maghrib)
@@ -90,18 +123,22 @@ func ParseAladhanPrayerCalendar(prayerCalendar []aladhanPrayerCalendar, location
 			return nil, errors.Wrap(err, "failed to parse magrib prayer time")
 		}
 
+		prayers[4] = Prayer{
+			Name:      MagribPrayerName,
+			Timestamp: magrib.Unix(),
+		}
+
 		isya, err := parsePrayerTime(location, timestamp, prayer.Timings.Isha)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to parse isya prayer time")
 		}
 
-		parsedPrayerCalendar[i] = PrayerCalendar{
-			SubuhPrayerName:  subuh.Unix(),
-			ZuhurPrayerName:  zuhur.Unix(),
-			AsarPrayerName:   asar.Unix(),
-			MagribPrayerName: magrib.Unix(),
-			IsyaPrayerName:   isya.Unix(),
+		prayers[5] = Prayer{
+			Name:      IsyaPrayerName,
+			Timestamp: isya.Unix(),
 		}
+
+		parsedPrayerCalendar[i] = prayers
 	}
 
 	return parsedPrayerCalendar, nil
@@ -200,50 +237,62 @@ func InitPrayerCalendar(timeZone string) error {
 	return nil
 }
 
-type nextPrayer struct {
-	Name string
-	Time time.Time
-}
+func GetNextAndPrevPrayer(prayerCalendar []PrayerCalendar, currentDay int, currentTimestamp int64) (Prayer, Prayer) {
+	var nextPrayer Prayer
+	var prevPrayer Prayer
 
-func GetNextPrayer(now *time.Time, prayerCalendar []PrayerCalendar) *nextPrayer {
-	nowTimestamp := now.Unix()
-	currentDay := now.Day()
 	todayPrayer := prayerCalendar[currentDay-1]
+	for _, prayer := range todayPrayer {
+		if prayer.Name == SunriseTimeName {
+			continue
+		}
 
-	var nextPrayer nextPrayer
-	for key, timestamp := range todayPrayer {
-		if timestamp > nowTimestamp {
-			nextPrayer.Name = key
-			nextPrayer.Time = time.Unix(timestamp, 0)
+		if prayer.Timestamp > currentTimestamp {
+			nextPrayer = prayer
 			break
+		} else {
+			prevPrayer = prayer
 		}
 	}
 
 	if nextPrayer.Name == "" {
 		currentDay++
 		tomorrowPrayer := prayerCalendar[currentDay-1]
-		nextPrayer.Name = SubuhPrayerName
-		nextPrayer.Time = time.Unix(tomorrowPrayer[SubuhPrayerName], 0)
+		nextPrayer = tomorrowPrayer[0]
 	}
 
-	return &nextPrayer
+	return nextPrayer, prevPrayer
 }
 
-func ScheduleUserPrayer(duration *time.Duration, payload task.UserPrayerPayload) error {
-	asynqTask, err := task.NewUserPrayerTask(payload)
+func SchedulePrayerReminder(duration *time.Duration, payload task.PrayerReminderPayload) error {
+	asynqTask, err := task.NewPrayerReminderTask(payload)
 	if err != nil {
-		return errors.Wrap(err, "failed to create user prayer task")
+		return errors.Wrap(err, "failed to create prayer reminder task")
 	}
 
 	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(*duration))
 	if err != nil {
-		return errors.Wrap(err, "failed to enqueue user prayer task")
+		return errors.Wrap(err, "failed to enqueue prayer reminder task")
 	}
 
 	return nil
 }
 
-func InitUserPrayer(prayerCalendar []PrayerCalendar, timeZone string) error {
+func ScheduleLastPrayerReminder(duration *time.Duration, payload task.PrayerReminderPayload) error {
+	asynqTask, err := task.NewLastPrayerReminderTask(payload)
+	if err != nil {
+		return errors.Wrap(err, "failed to create last prayer reminder task")
+	}
+
+	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(*duration))
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue last prayer reminder task")
+	}
+
+	return nil
+}
+
+func InitPrayerReminder(prayerCalendar []PrayerCalendar, timeZone string) error {
 	users, err := services.GetQueries().GetUsersByTimeZone(
 		context.TODO(),
 		repository.NullIndonesiaTimeZone{
@@ -263,19 +312,21 @@ func InitUserPrayer(prayerCalendar []PrayerCalendar, timeZone string) error {
 
 	for _, user := range users {
 		now := time.Now().In(location)
-		nextPrayer := GetNextPrayer(&now, prayerCalendar)
+		currentDay := now.Day()
+		currentTimestamp := now.Unix()
 
-		duration := nextPrayer.Time.Sub(now)
-		err = ScheduleUserPrayer(
+		nextPrayer, _ := GetNextAndPrevPrayer(prayerCalendar, currentDay, currentTimestamp)
+		duration := time.Unix(nextPrayer.Timestamp, 0).Sub(now)
+		err = SchedulePrayerReminder(
 			&duration,
-			task.UserPrayerPayload{
+			task.PrayerReminderPayload{
 				UserID:     user.ID,
 				PrayerName: nextPrayer.Name,
 			},
 		)
 
 		if err != nil {
-			return errors.Wrap(err, "failed to schedule user prayer")
+			return errors.Wrap(err, "failed to schedule prayer reminder")
 		}
 	}
 

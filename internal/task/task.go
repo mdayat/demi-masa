@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	TypeUserDowngrade = "user:downgrade"
-	TypeUserPrayer    = "user:prayer"
+	TypeUserDowngrade      = "user:downgrade"
+	TypePrayerReminder     = "prayer:remind"
+	TypeLastPrayerReminder = "prayer:last-remind"
 )
 
 type UserDowngradePayload struct {
@@ -31,21 +32,35 @@ func NewUserDowngradeTask(payload UserDowngradePayload) (*asynq.Task, error) {
 	), nil
 }
 
-type UserPrayerPayload struct {
+type PrayerReminderPayload struct {
 	UserID     string
 	PrayerName string
 }
 
-func NewUserPrayerTask(payload UserPrayerPayload) (*asynq.Task, error) {
+func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
 	bytes, err := json.Marshal(payload)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal user prayer task payload")
+		return nil, errors.Wrap(err, "failed to marshal prayer reminder task payload")
 	}
 
 	return asynq.NewTask(
-		TypeUserPrayer,
+		TypePrayerReminder,
 		bytes,
 		asynq.TaskID(fmt.Sprintf("%s:%s", payload.UserID, payload.PrayerName)),
+		asynq.MaxRetry(3),
+	), nil
+}
+
+func NewLastPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
+	bytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal last prayer reminder task payload")
+	}
+
+	return asynq.NewTask(
+		TypeLastPrayerReminder,
+		bytes,
+		asynq.TaskID(fmt.Sprintf("%s:%s:last", payload.UserID, payload.PrayerName)),
 		asynq.MaxRetry(3),
 	), nil
 }

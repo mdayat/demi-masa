@@ -276,6 +276,17 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 	return i, err
 }
 
+const getUserPhoneByID = `-- name: GetUserPhoneByID :one
+SELECT u.phone_number FROM "user" u WHERE u.id = $1
+`
+
+func (q *Queries) GetUserPhoneByID(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getUserPhoneByID, id)
+	var phone_number pgtype.Text
+	err := row.Scan(&phone_number)
+	return phone_number, err
+}
+
 const getUserPrayerByID = `-- name: GetUserPrayerByID :one
 SELECT
   u.phone_number,
