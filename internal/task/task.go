@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
+	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
 )
 
@@ -12,6 +13,7 @@ const (
 	TypeUserDowngrade      = "user:downgrade"
 	TypePrayerReminder     = "prayer:remind"
 	TypeLastPrayerReminder = "prayer:last-remind"
+	TypePrayerRenewal      = "prayer:renew"
 )
 
 type UserDowngradePayload struct {
@@ -33,8 +35,10 @@ func NewUserDowngradeTask(payload UserDowngradePayload) (*asynq.Task, error) {
 }
 
 type PrayerReminderPayload struct {
-	UserID     string
-	PrayerName string
+	UserID          string
+	PrayerName      string
+	PrayerTimestamp int64
+	LastDay         bool
 }
 
 func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
@@ -51,7 +55,12 @@ func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
 	), nil
 }
 
-func NewLastPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
+type LastPrayerReminderPayload struct {
+	UserID     string
+	PrayerName string
+}
+
+func NewLastPrayerReminderTask(payload LastPrayerReminderPayload) (*asynq.Task, error) {
 	bytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal last prayer reminder task payload")
@@ -63,4 +72,17 @@ func NewLastPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, erro
 		asynq.TaskID(fmt.Sprintf("%s:%s:last", payload.UserID, payload.PrayerName)),
 		asynq.MaxRetry(3),
 	), nil
+}
+
+type PrayerRenewalTask struct {
+	TimeZone repository.IndonesiaTimeZone
+}
+
+func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
+	bytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal prayer renewal task payload")
+	}
+
+	return asynq.NewTask(TypeLastPrayerReminder, bytes, asynq.MaxRetry(3)), nil
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -59,26 +61,33 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 
-	var prayerCalendar []prayer.PrayerCalendar
-	if user.TimeZone.IndonesiaTimeZone == repository.IndonesiaTimeZone(prayer.WIBTimeZone) {
-		prayerCalendar = prayer.WIBPrayerCalendar
-	} else if user.TimeZone.IndonesiaTimeZone == repository.IndonesiaTimeZone(prayer.WITTimeZone) {
-		prayerCalendar = prayer.WITPrayerCalendar
-	} else {
-		prayerCalendar = prayer.WITAPrayerCalendar
+	var prayerCalendar = prayer.PrayerCalendars[user.TimeZone.IndonesiaTimeZone]
+	var lastPrayers prayer.Prayers
+	if payload.LastDay {
+		lastPrayers = prayer.LastPrayers[user.TimeZone.IndonesiaTimeZone]
 	}
 
 	now := time.Now().In(location)
 	currentDay := now.Day()
 	currentTimestamp := now.Unix()
 
-	nextPrayer, prevPrayer := prayer.GetNextAndPrevPrayer(prayerCalendar, currentDay, currentTimestamp)
+	nextPrayer := prayer.GetNextPrayer(prayerCalendar, lastPrayers, currentDay, currentTimestamp)
 	duration := time.Unix(nextPrayer.Timestamp, 0).Sub(now)
+	numOfDays := len(prayerCalendar)
+
+	var lastDay bool
+	if (currentDay == numOfDays-1 && payload.PrayerName == prayer.IsyaPrayerName) ||
+		(currentDay == numOfDays && payload.PrayerName != prayer.IsyaPrayerName) {
+		lastDay = true
+	}
+
 	err = prayer.SchedulePrayerReminder(
 		&duration,
 		task.PrayerReminderPayload{
-			UserID:     payload.UserID,
-			PrayerName: nextPrayer.Name,
+			UserID:          payload.UserID,
+			PrayerName:      nextPrayer.Name,
+			PrayerTimestamp: nextPrayer.Timestamp,
+			LastDay:         lastDay,
 		},
 	)
 
@@ -89,45 +98,36 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx.Info().Msg("successfully scheduled prayer reminder")
 
 	if user.AccountType == repository.AccountTypePREMIUM {
-		if payload.PrayerName == prayer.SubuhPrayerName {
+		var prayerTimeDistance time.Duration
+		if payload.PrayerName != prayer.SubuhPrayerName {
+			prayerTimeDistance = time.Unix(nextPrayer.Timestamp, 0).Sub(time.Unix(payload.PrayerTimestamp, 0))
+		}
+
+		if payload.PrayerName == prayer.SubuhPrayerName && lastDay {
+			sunriseTime := time.Unix(lastPrayers[1].Timestamp, 0)
+			prayerTimeDistance = sunriseTime.Sub(time.Unix(payload.PrayerTimestamp, 0))
+		}
+
+		if payload.PrayerName == prayer.SubuhPrayerName && lastDay == false {
 			todayPrayer := prayerCalendar[currentDay-1]
 			sunriseTime := time.Unix(todayPrayer[1].Timestamp, 0)
-			subuhTime := time.Unix(todayPrayer[0].Timestamp, 0)
-
-			prayerTimeDistance := sunriseTime.Sub(subuhTime)
-			quarterTime := int(math.Round(prayerTimeDistance.Seconds() * 0.25))
-			lastReminderDuration := duration - time.Duration(quarterTime)*time.Second
-
-			err = prayer.ScheduleLastPrayerReminder(
-				&lastReminderDuration,
-				task.PrayerReminderPayload{
-					UserID:     payload.UserID,
-					PrayerName: payload.PrayerName,
-				},
-			)
-
-			if err != nil {
-				return errors.Wrap(err, "failed to schedule last prayer reminder")
-			}
-			logWithCtx.Info().Msg("successfully scheduled last prayer reminder")
-		} else {
-			prayerTimeDistance := time.Unix(nextPrayer.Timestamp, 0).Sub(time.Unix(prevPrayer.Timestamp, 0))
-			quarterTime := int(math.Round(prayerTimeDistance.Seconds() * 0.25))
-			lastReminderDuration := duration - time.Duration(quarterTime)*time.Second
-
-			err = prayer.ScheduleLastPrayerReminder(
-				&lastReminderDuration,
-				task.PrayerReminderPayload{
-					UserID:     payload.UserID,
-					PrayerName: payload.PrayerName,
-				},
-			)
-
-			if err != nil {
-				return errors.Wrap(err, "failed to schedule last prayer reminder")
-			}
-			logWithCtx.Info().Msg("successfully scheduled last prayer reminder")
+			prayerTimeDistance = sunriseTime.Sub(time.Unix(payload.PrayerTimestamp, 0))
 		}
+
+		quarterTime := int(math.Round(prayerTimeDistance.Seconds() * 0.25))
+		lastReminderDuration := duration - time.Duration(quarterTime)*time.Second
+		err = prayer.ScheduleLastPrayerReminder(
+			&lastReminderDuration,
+			task.LastPrayerReminderPayload{
+				UserID:     payload.UserID,
+				PrayerName: payload.PrayerName,
+			},
+		)
+
+		if err != nil {
+			return errors.Wrap(err, "failed to schedule last prayer reminder")
+		}
+		logWithCtx.Info().Msg("successfully scheduled last prayer reminder")
 	}
 
 	params := twilioApi.CreateMessageParams{}
@@ -141,10 +141,10 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 
 	_, err = twilioClient.Api.CreateMessage(&params)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to send prayer reminder")
+		logWithCtx.Error().Err(err).Str("phone_number", user.PhoneNumber.String).Msg("failed to send prayer reminder")
 		return err
 	}
-	logWithCtx.Info().Msg("successfully sent prayer reminder")
+	logWithCtx.Info().Str("phone_number", user.PhoneNumber.String).Msg("successfully sent prayer reminder")
 
 	return nil
 }
@@ -175,10 +175,82 @@ func handleLastPrayerReminder(ctx context.Context, asynqTask *asynq.Task) error 
 
 	_, err = twilioClient.Api.CreateMessage(&params)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to send last prayer reminder")
+		logWithCtx.Error().Err(err).Str("phone_number", userPhone.String).Msg("failed to send last prayer reminder")
 		return err
 	}
-	logWithCtx.Info().Msg("successfully sent last prayer reminder")
+	logWithCtx.Info().Str("phone_number", userPhone.String).Msg("successfully sent last prayer reminder")
+
+	return nil
+}
+
+func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
+	logWithCtx := log.Ctx(ctx).With().Logger()
+	var payload task.PrayerRenewalTask
+	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to unmarshal prayer renewal task payload")
+		return err
+	}
+
+	location, err := time.LoadLocation(string(payload.TimeZone))
+	if err != nil {
+		logWithCtx.Error().Err(err).Str("time_zone", string(payload.TimeZone)).Msg("failed to load time zone location")
+		return err
+	}
+	logWithCtx.Info().Str("time_zone", string(payload.TimeZone)).Msg("successfully loaded time zone location")
+
+	now := time.Now().In(location)
+	year := now.Year()
+	month, err := strconv.Atoi(fmt.Sprintf("%d", now.Month()))
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to convert string to integer")
+		return err
+	}
+
+	if month == 12 {
+		year++
+		month = 1
+	} else {
+		month++
+	}
+
+	URL := fmt.Sprintf(
+		"https://api.aladhan.com/v1/calendarByCity/%d/%d?country=Indonesia&city=%s",
+		year,
+		month,
+		strings.Split(string(payload.TimeZone), "/")[1],
+	)
+
+	prayerCalendar, err := prayer.GetAladhanPrayerCalendar(URL)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to get aladhan prayer calendar")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully get aladhan prayer calendar")
+
+	parsedPrayerCalendar, err := prayer.ParseAladhanPrayerCalendar(prayerCalendar, location, payload.TimeZone)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to parse aladhan prayer calendar")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully parsed aladhan prayer calendar")
+
+	oldPrayerCalendar := prayer.PrayerCalendars[payload.TimeZone]
+	prayer.LastPrayers[payload.TimeZone] = oldPrayerCalendar[len(oldPrayerCalendar)-1]
+	prayer.PrayerCalendars[payload.TimeZone] = parsedPrayerCalendar
+
+	numOfDays := len(parsedPrayerCalendar)
+	err = prayer.SchedulePrayerRenewal(
+		numOfDays,
+		location,
+		&now,
+		task.PrayerRenewalTask{TimeZone: payload.TimeZone},
+	)
+
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to schedule prayer renewal")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully scheduled prayer renewal")
 
 	return nil
 }

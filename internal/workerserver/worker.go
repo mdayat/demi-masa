@@ -28,6 +28,7 @@ func New() (*asynq.Server, *asynq.ServeMux) {
 	mux.HandleFunc(task.TypeUserDowngrade, handleUserDowngrade)
 	mux.HandleFunc(task.TypePrayerReminder, handlePrayerReminder)
 	mux.HandleFunc(task.TypeLastPrayerReminder, handleLastPrayerReminder)
+	mux.HandleFunc(task.TypePrayerRenewal, handlePrayerRenewal)
 
 	return asynqServer, mux
 }

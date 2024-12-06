@@ -7,6 +7,7 @@ import (
 	"github.com/mdayat/demi-masa-be/internal/prayer"
 	"github.com/mdayat/demi-masa-be/internal/services"
 	"github.com/mdayat/demi-masa-be/internal/workerserver"
+	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/rs/zerolog/log"
 )
 
@@ -27,12 +28,15 @@ func main() {
 	services.InitTwilio(config.Env.TWILIO_ACCOUNT_SID, config.Env.TWILIO_AUTH_TOKEN)
 	services.InitAsynq(config.Env.REDIS_URL)
 
-	err = prayer.InitPrayerCalendar(prayer.WIBTimeZone)
+	err = prayer.InitPrayerCalendar(repository.IndonesiaTimeZoneAsiaJakarta)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed calendar")
 	}
 
-	err = prayer.InitPrayerReminder(prayer.WIBPrayerCalendar, prayer.WIBTimeZone)
+	err = prayer.InitPrayerReminder(
+		prayer.PrayerCalendars[repository.IndonesiaTimeZoneAsiaJakarta],
+		repository.IndonesiaTimeZoneAsiaJakarta,
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed user")
 	}
