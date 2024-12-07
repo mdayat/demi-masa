@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"sync"
 
 	"github.com/mdayat/demi-masa-be/internal/config"
 	"github.com/mdayat/demi-masa-be/internal/prayer"
 	"github.com/mdayat/demi-masa-be/internal/services"
 	"github.com/mdayat/demi-masa-be/internal/workerserver"
 	"github.com/mdayat/demi-masa-be/repository"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
@@ -28,17 +30,69 @@ func main() {
 	services.InitTwilio(config.Env.TWILIO_ACCOUNT_SID, config.Env.TWILIO_AUTH_TOKEN)
 	services.InitAsynq(config.Env.REDIS_URL)
 
-	err = prayer.InitPrayerCalendar(repository.IndonesiaTimeZoneAsiaJakarta)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed calendar")
-	}
+	var wg sync.WaitGroup
+	errChan := make(chan error, 3)
 
-	err = prayer.InitPrayerReminder(
-		prayer.PrayerCalendars[repository.IndonesiaTimeZoneAsiaJakarta],
-		repository.IndonesiaTimeZoneAsiaJakarta,
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed user")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		err = prayer.InitPrayerCalendar(repository.IndonesiaTimeZoneAsiaJakarta)
+		if err != nil {
+			errChan <- errors.Wrap(err, "failed to init WIB prayer calendar")
+			return
+		}
+
+		err = prayer.InitPrayerReminder(repository.IndonesiaTimeZoneAsiaJakarta)
+		if err != nil {
+			errChan <- errors.Wrap(err, "failed to init WIB prayer reminder")
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		err = prayer.InitPrayerCalendar(repository.IndonesiaTimeZoneAsiaJayapura)
+		if err != nil {
+			errChan <- errors.Wrap(err, "failed to init WIT prayer calendar")
+			return
+		}
+
+		err = prayer.InitPrayerReminder(repository.IndonesiaTimeZoneAsiaJayapura)
+		if err != nil {
+			errChan <- errors.Wrap(err, "failed to init WIT prayer reminder")
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		err = prayer.InitPrayerCalendar(repository.IndonesiaTimeZoneAsiaMakassar)
+		if err != nil {
+			errChan <- errors.Wrap(err, "failed to init WITA prayer calendar")
+			return
+		}
+
+		err = prayer.InitPrayerReminder(repository.IndonesiaTimeZoneAsiaMakassar)
+		if err != nil {
+			errChan <- errors.Wrap(err, "failed to init WITA prayer reminder")
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	for i := 0; i < 3; i++ {
+		select {
+		case err = <-errChan:
+			if err != nil {
+				log.Fatal().Err(err).Msg("failed to concurrently init prayer calendar and reminder")
+			}
+		}
 	}
 
 	server, mux := workerserver.New()

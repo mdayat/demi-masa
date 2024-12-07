@@ -342,7 +342,8 @@ func ScheduleLastPrayerReminder(duration *time.Duration, payload task.LastPrayer
 	return nil
 }
 
-func InitPrayerReminder(prayerCalendar PrayerCalendar, timeZone repository.IndonesiaTimeZone) error {
+func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
+	prayerCalendar := PrayerCalendars[timeZone]
 	users, err := services.GetQueries().GetUsersByTimeZone(
 		context.TODO(),
 		repository.NullIndonesiaTimeZone{

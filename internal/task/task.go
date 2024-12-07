@@ -84,5 +84,5 @@ func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
 		return nil, errors.Wrap(err, "failed to marshal prayer renewal task payload")
 	}
 
-	return asynq.NewTask(TypeLastPrayerReminder, bytes, asynq.MaxRetry(3)), nil
+	return asynq.NewTask(TypePrayerRenewal, bytes, asynq.MaxRetry(3)), nil
 }
