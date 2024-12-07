@@ -115,7 +115,8 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		}
 
 		quarterTime := int(math.Round(prayerTimeDistance.Seconds() * 0.25))
-		lastReminderDuration := duration - time.Duration(quarterTime)*time.Second
+		lastReminderDuration := duration - time.Duration(quarterTime)
+
 		err = prayer.ScheduleLastPrayerReminder(
 			&lastReminderDuration,
 			task.LastPrayerReminderPayload{
