@@ -401,3 +401,17 @@ func (q *Queries) UpdateUserSubs(ctx context.Context, arg UpdateUserSubsParams) 
 	_, err := q.db.Exec(ctx, updateUserSubs, arg.ID, arg.AccountType)
 	return err
 }
+
+const updateUserTimeZone = `-- name: UpdateUserTimeZone :exec
+UPDATE "user" SET time_zone = $2 WHERE id = $1
+`
+
+type UpdateUserTimeZoneParams struct {
+	ID       string                `json:"id"`
+	TimeZone NullIndonesiaTimeZone `json:"time_zone"`
+}
+
+func (q *Queries) UpdateUserTimeZone(ctx context.Context, arg UpdateUserTimeZoneParams) error {
+	_, err := q.db.Exec(ctx, updateUserTimeZone, arg.ID, arg.TimeZone)
+	return err
+}

@@ -59,6 +59,7 @@ func New() *chi.Mux {
 		r.Use(authenticate)
 
 		r.Delete("/users/{userID}", deleteUserHandler)
+		r.Put("/users/{userID}/time-zone", updateTimeZoneHandler)
 
 		r.Post("/otp/generation", generateOTPHandler)
 		r.Post("/otp/verification", verifyOTPHandler)

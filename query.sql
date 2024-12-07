@@ -28,6 +28,9 @@ UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 -- name: UpdateUserSubs :exec
 UPDATE "user" SET account_type = $2 WHERE id = $1;
 
+-- name: UpdateUserTimeZone :exec
+UPDATE "user" SET time_zone = $2 WHERE id = $1;
+
 -- name: CreateUser :one
 INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3) RETURNING *;
 
