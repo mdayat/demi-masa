@@ -85,13 +85,15 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	respBody := struct {
-		PhoneNumber   string                 `json:"phone_number,omitempty"`
-		PhoneVerified bool                   `json:"phone_verified"`
-		AccountType   repository.AccountType `json:"account_type"`
+		PhoneNumber   string                       `json:"phone_number,omitempty"`
+		PhoneVerified bool                         `json:"phone_verified"`
+		AccountType   repository.AccountType       `json:"account_type"`
+		TimeZone      repository.IndonesiaTimeZone `json:"time_zone,omitempty"`
 	}{
 		PhoneNumber:   user.PhoneNumber.String,
 		PhoneVerified: user.PhoneVerified,
 		AccountType:   user.AccountType,
+		TimeZone:      user.TimeZone.IndonesiaTimeZone,
 	}
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: statusCode, Data: respBody})
