@@ -96,6 +96,49 @@ func (ns NullIndonesiaTimeZone) Value() (driver.Value, error) {
 	return string(ns.IndonesiaTimeZone), nil
 }
 
+type PrayerStatus string
+
+const (
+	PrayerStatusONTIME PrayerStatus = "ON_TIME"
+	PrayerStatusLATE   PrayerStatus = "LATE"
+	PrayerStatusMISSED PrayerStatus = "MISSED"
+)
+
+func (e *PrayerStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PrayerStatus(s)
+	case string:
+		*e = PrayerStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PrayerStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPrayerStatus struct {
+	PrayerStatus PrayerStatus `json:"prayer_status"`
+	Valid        bool         `json:"valid"` // Valid is true if PrayerStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPrayerStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PrayerStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PrayerStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPrayerStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PrayerStatus), nil
+}
+
 type TransactionStatus string
 
 const (
@@ -147,6 +190,26 @@ type Coupon struct {
 	Quota              int16              `json:"quota"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type IbadahList struct {
+	ID          pgtype.UUID `json:"id"`
+	UserID      string      `json:"user_id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Checked     bool        `json:"checked"`
+}
+
+type Prayer struct {
+	ID       pgtype.UUID       `json:"id"`
+	UserID   string            `json:"user_id"`
+	Name     string            `json:"name"`
+	Time     int64             `json:"time"`
+	TimeZone IndonesiaTimeZone `json:"time_zone"`
+	Status   PrayerStatus      `json:"status"`
+	Year     int16             `json:"year"`
+	Month    int16             `json:"month"`
+	Day      int16             `json:"day"`
 }
 
 type SubscriptionPlan struct {

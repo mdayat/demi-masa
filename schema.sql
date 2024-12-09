@@ -1,6 +1,7 @@
 CREATE TYPE account_type AS ENUM ('FREE', 'PREMIUM');
 CREATE TYPE transaction_status AS ENUM ('UNPAID', 'PAID', 'FAILED', 'EXPIRED', 'REFUND');
 CREATE TYPE indonesia_time_zone AS ENUM ('Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura');
+CREATE TYPE prayer_status AS ENUM ('ON_TIME', 'LATE', 'MISSED');
 
 CREATE TABLE "user" (
   id VARCHAR(255),
@@ -52,7 +53,7 @@ CREATE TABLE transaction (
 
   PRIMARY KEY (id),
   
-  CONSTRAINT fk_user
+  CONSTRAINT fk_user_transaction
     FOREIGN KEY (user_id)
     REFERENCES "user"(id)
     ON UPDATE CASCADE
@@ -67,6 +68,42 @@ CREATE TABLE transaction (
   CONSTRAINT fk_coupon
     FOREIGN KEY (coupon_code)
     REFERENCES coupon(code)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE
+);
+
+CREATE TABLE prayer (
+  id UUID DEFAULT gen_random_uuid(),
+  user_id VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  time BIGINT NOT NULL,
+  time_zone indonesia_time_zone NOT NULL,
+  status prayer_status DEFAULT 'MISSED' NOT NULL,
+  year SMALLINT NOT NULL,
+  month SMALLINT NOT NULL,
+  day SMALLINT NOT NULL,
+
+  PRIMARY KEY (id),
+
+  CONSTRAINT fk_user_prayer
+    FOREIGN KEY (user_id)
+    REFERENCES "user"(id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE
+);
+
+CREATE TABLE ibadah_list (
+  id UUID DEFAULT gen_random_uuid(),
+  user_id VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  checked BOOLEAN DEFAULT FALSE NOT NULL,
+
+  PRIMARY KEY (id),
+
+  CONSTRAINT fk_user_ibadah_list
+    FOREIGN KEY (user_id)
+    REFERENCES "user"(id)
     ON UPDATE CASCADE
     ON DELETE CASCADE
 );
