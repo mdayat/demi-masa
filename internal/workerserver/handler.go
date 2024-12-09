@@ -255,3 +255,15 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 
 	return nil
 }
+
+func handleTaskRemoval(ctx context.Context, asynqTask *asynq.Task) error {
+	logWithCtx := log.Ctx(ctx).With().Logger()
+	err := queries.RemoveCheckedTask(ctx)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to delete checked tasks")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully deleted checked tasks")
+
+	return nil
+}

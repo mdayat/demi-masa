@@ -192,14 +192,6 @@ type Coupon struct {
 	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
 }
 
-type IbadahList struct {
-	ID          pgtype.UUID `json:"id"`
-	UserID      string      `json:"user_id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Checked     bool        `json:"checked"`
-}
-
 type Prayer struct {
 	ID       pgtype.UUID       `json:"id"`
 	UserID   string            `json:"user_id"`
@@ -219,6 +211,14 @@ type SubscriptionPlan struct {
 	DurationInMonths int16              `json:"duration_in_months"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type Task struct {
+	ID          pgtype.UUID `json:"id"`
+	UserID      string      `json:"user_id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Checked     bool        `json:"checked"`
 }
 
 type Transaction struct {

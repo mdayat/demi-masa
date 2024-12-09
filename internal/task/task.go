@@ -14,6 +14,7 @@ const (
 	TypePrayerReminder     = "prayer:remind"
 	TypeLastPrayerReminder = "prayer:last-remind"
 	TypePrayerRenewal      = "prayer:renew"
+	TypeTaskRemoval        = "task:remove"
 )
 
 type UserDowngradePayload struct {
@@ -85,4 +86,8 @@ func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
 	}
 
 	return asynq.NewTask(TypePrayerRenewal, bytes, asynq.MaxRetry(3)), nil
+}
+
+func NewTaskRemovalTask() (*asynq.Task, error) {
+	return asynq.NewTask(TypeTaskRemoval, nil, asynq.MaxRetry(3)), nil
 }

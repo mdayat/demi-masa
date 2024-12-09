@@ -358,6 +358,15 @@ func (q *Queries) IncrementCouponQuota(ctx context.Context, code string) error {
 	return err
 }
 
+const removeCheckedTask = `-- name: RemoveCheckedTask :exec
+DELETE FROM task WHERE checked = TRUE
+`
+
+func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, removeCheckedTask)
+	return err
+}
+
 const updateTxStatus = `-- name: UpdateTxStatus :exec
 UPDATE transaction SET status = $2, paid_at = $3 WHERE id = $1
 `

@@ -92,7 +92,7 @@ CREATE TABLE prayer (
     ON DELETE CASCADE
 );
 
-CREATE TABLE ibadah_list (
+CREATE TABLE task (
   id UUID DEFAULT gen_random_uuid(),
   user_id VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE ibadah_list (
 
   PRIMARY KEY (id),
 
-  CONSTRAINT fk_user_ibadah_list
+  CONSTRAINT fk_user_task
     FOREIGN KEY (user_id)
     REFERENCES "user"(id)
     ON UPDATE CASCADE

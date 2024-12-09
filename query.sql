@@ -79,3 +79,6 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: UpdateTxStatus :exec
 UPDATE transaction SET status = $2, paid_at = $3 WHERE id = $1;
+
+-- name: RemoveCheckedTask :exec
+DELETE FROM task WHERE checked = TRUE;
