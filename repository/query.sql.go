@@ -12,7 +12,7 @@ import (
 )
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id
+INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id, name, description, checked
 `
 
 type CreateTaskParams struct {
@@ -21,11 +21,23 @@ type CreateTaskParams struct {
 	Description string `json:"description"`
 }
 
-func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (pgtype.UUID, error) {
+type CreateTaskRow struct {
+	ID          pgtype.UUID `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Checked     bool        `json:"checked"`
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateTaskRow, error) {
 	row := q.db.QueryRow(ctx, createTask, arg.UserID, arg.Name, arg.Description)
-	var id pgtype.UUID
-	err := row.Scan(&id)
-	return id, err
+	var i CreateTaskRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Checked,
+	)
+	return i, err
 }
 
 const createTx = `-- name: CreateTx :exec

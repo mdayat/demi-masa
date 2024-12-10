@@ -89,7 +89,7 @@ SELECT
  FROM task t WHERE t.user_id = $1;
 
 -- name: CreateTask :one
-INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id;
+INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id, name, description, checked;
 
 -- name: UpdateTaskByID :exec
 UPDATE task SET name = $2, description = $3, checked = $4 WHERE id = $1;

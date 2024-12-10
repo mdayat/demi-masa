@@ -72,7 +72,7 @@ func createTaskHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Msg("successfully decoded and validated request body")
 
 	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
-	taskUUID, err := queries.CreateTask(req.Context(), repository.CreateTaskParams{
+	task, err := queries.CreateTask(req.Context(), repository.CreateTaskParams{
 		UserID:      userID,
 		Name:        body.Name,
 		Description: body.Description,
@@ -85,7 +85,7 @@ func createTaskHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	logWithCtx.Info().Msg("successfully created task")
 
-	taskID, err := taskUUID.Value()
+	taskID, err := task.ID.Value()
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("failed to get task UUID from pgtype.UUID")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -93,8 +93,22 @@ func createTaskHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	logWithCtx.Info().Msg("successfully get task UUID from pgtype.UUID")
 
+	respBody := taskRespBody{
+		ID:          fmt.Sprintf("%s", taskID),
+		Name:        task.Name,
+		Description: task.Description,
+		Checked:     task.Checked,
+	}
+
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: respBody})
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to send successful response body")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	logWithCtx.Info().Msg("successfully sent successful response body")
 	res.Header().Set("Location", fmt.Sprintf("/tasks/%s", taskID))
-	res.WriteHeader(http.StatusCreated)
 }
 
 func updateTaskHandler(res http.ResponseWriter, req *http.Request) {
