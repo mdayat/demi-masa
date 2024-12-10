@@ -80,5 +80,22 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 -- name: UpdateTxStatus :exec
 UPDATE transaction SET status = $2, paid_at = $3 WHERE id = $1;
 
+-- name: GetTasksByUserID :many
+SELECT 
+  t.id,
+  t.name,
+  t.description,
+  t.checked
+ FROM task t WHERE t.user_id = $1;
+
+-- name: CreateTask :one
+INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id;
+
+-- name: UpdateTaskByID :exec
+UPDATE task SET name = $2, description = $3, checked = $4 WHERE id = $1;
+
 -- name: RemoveCheckedTask :exec
 DELETE FROM task WHERE checked = TRUE;
+
+-- name: DeleteTaskByID :exec
+DELETE FROM task WHERE id = $1;

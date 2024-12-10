@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createTask = `-- name: CreateTask :one
+INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id
+`
+
+type CreateTaskParams struct {
+	UserID      string `json:"user_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, createTask, arg.UserID, arg.Name, arg.Description)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const createTx = `-- name: CreateTx :exec
 INSERT INTO transaction (id, user_id, subscription_plan_id, ref_id, coupon_code, payment_method, qr_url, expired_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -79,6 +96,15 @@ func (q *Queries) DecrementCouponQuota(ctx context.Context, code string) (int16,
 	return quota, err
 }
 
+const deleteTaskByID = `-- name: DeleteTaskByID :exec
+DELETE FROM task WHERE id = $1
+`
+
+func (q *Queries) DeleteTaskByID(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteTaskByID, id)
+	return err
+}
+
 const deleteUserByID = `-- name: DeleteUserByID :one
 DELETE FROM "user" WHERE id = $1 RETURNING id
 `
@@ -127,6 +153,47 @@ func (q *Queries) GetSubsPlans(ctx context.Context) ([]SubscriptionPlan, error) 
 			&i.DurationInMonths,
 			&i.CreatedAt,
 			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTasksByUserID = `-- name: GetTasksByUserID :many
+SELECT 
+  t.id,
+  t.name,
+  t.description,
+  t.checked
+ FROM task t WHERE t.user_id = $1
+`
+
+type GetTasksByUserIDRow struct {
+	ID          pgtype.UUID `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Checked     bool        `json:"checked"`
+}
+
+func (q *Queries) GetTasksByUserID(ctx context.Context, userID string) ([]GetTasksByUserIDRow, error) {
+	rows, err := q.db.Query(ctx, getTasksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTasksByUserIDRow
+	for rows.Next() {
+		var i GetTasksByUserIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Checked,
 		); err != nil {
 			return nil, err
 		}
@@ -364,6 +431,27 @@ DELETE FROM task WHERE checked = TRUE
 
 func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, removeCheckedTask)
+	return err
+}
+
+const updateTaskByID = `-- name: UpdateTaskByID :exec
+UPDATE task SET name = $2, description = $3, checked = $4 WHERE id = $1
+`
+
+type UpdateTaskByIDParams struct {
+	ID          pgtype.UUID `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Checked     bool        `json:"checked"`
+}
+
+func (q *Queries) UpdateTaskByID(ctx context.Context, arg UpdateTaskByIDParams) error {
+	_, err := q.db.Exec(ctx, updateTaskByID,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.Checked,
+	)
 	return err
 }
 
