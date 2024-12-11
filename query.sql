@@ -22,6 +22,9 @@ FROM "user" u WHERE u.time_zone = $1;
 -- name: GetUserPhoneByID :one
 SELECT u.phone_number FROM "user" u WHERE u.id = $1;
 
+-- name: GetUserTimeZoneByID :one
+SELECT u.time_zone FROM "user" u WHERE u.id = $1;
+
 -- name: UpdateUserPhoneNumber :exec
 UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 
@@ -99,3 +102,6 @@ DELETE FROM task WHERE checked = TRUE;
 
 -- name: DeleteTaskByID :exec
 DELETE FROM task WHERE id = $1;
+
+-- name: CreatePrayers :copyfrom
+INSERT INTO prayer (user_id, name, time, time_zone, year, month, day) VALUES ($1, $2, $3, $4, $5, $6, $7);

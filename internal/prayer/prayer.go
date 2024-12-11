@@ -342,6 +342,64 @@ func ScheduleLastPrayerReminder(duration *time.Duration, payload task.LastPrayer
 	return nil
 }
 
+func SchedulePrayerInitialization(now time.Time, userID string) error {
+	tomorrow := now.AddDate(0, 0, 1)
+	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, now.Location())
+	duration := midnight.Sub(now)
+
+	asynqTask, err := task.NewPrayerInitialization(task.PrayerInitializationPayload{UserID: userID})
+	if err != nil {
+		return errors.Wrap(err, "failed to create prayer initialization task")
+	}
+
+	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(duration))
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue prayer initialization task")
+	}
+
+	return nil
+}
+
+type BulkInsertPrayerParams struct {
+	UserID   string
+	TimeZone repository.IndonesiaTimeZone
+	Year     int16
+	Month    int16
+	Day      int16
+}
+
+func BulkInsertPrayer(todayPrayer Prayers, arg BulkInsertPrayerParams) error {
+	todayPrayerLen := len(todayPrayer) - 1
+	prayersArgs := make([]repository.CreatePrayersParams, 0, todayPrayerLen)
+
+	for _, prayer := range todayPrayer {
+		if prayer.Name == SunriseTimeName {
+			continue
+		}
+
+		prayersArgs = append(prayersArgs, repository.CreatePrayersParams{
+			UserID:   arg.UserID,
+			Name:     prayer.Name,
+			Time:     prayer.Timestamp,
+			TimeZone: arg.TimeZone,
+			Year:     arg.Year,
+			Month:    arg.Month,
+			Day:      arg.Day,
+		})
+	}
+
+	numOfRows, err := services.GetQueries().CreatePrayers(context.TODO(), prayersArgs)
+	if err != nil {
+		return err
+	}
+
+	if numOfRows != int64(todayPrayerLen) {
+		return errors.New("number of created prayer doesn't match with today prayer length")
+	}
+
+	return nil
+}
+
 func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 	prayerCalendar := PrayerCalendars[timeZone]
 	users, err := services.GetQueries().GetUsersByTimeZone(
@@ -396,6 +454,24 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 
 		if err != nil {
 			return errors.Wrap(err, "failed to schedule prayer reminder")
+		}
+
+		todayPrayer := prayerCalendar[currentDay-1]
+		err = BulkInsertPrayer(todayPrayer, BulkInsertPrayerParams{
+			UserID:   user.ID,
+			TimeZone: timeZone,
+			Year:     int16(now.Year()),
+			Month:    int16(now.Month()),
+			Day:      int16(currentDay),
+		})
+
+		if err != nil {
+			return errors.Wrap(err, "failed to bluk insert prayer")
+		}
+
+		err = SchedulePrayerInitialization(now, user.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to schedule prayer initialization")
 		}
 	}
 

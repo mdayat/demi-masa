@@ -194,10 +194,10 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 
 	location, err := time.LoadLocation(string(payload.TimeZone))
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("time_zone", string(payload.TimeZone)).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
 		return err
 	}
-	logWithCtx.Info().Str("time_zone", string(payload.TimeZone)).Msg("successfully loaded time zone location")
+	logWithCtx.Info().Msg("successfully loaded time zone location")
 
 	now := time.Now().In(location)
 	year := now.Year()
@@ -271,6 +271,59 @@ func handleTaskRemoval(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 	logWithCtx.Info().Msg("successfully scheduled task removal task")
+
+	return nil
+}
+
+func handlePrayerInitialization(ctx context.Context, asynqTask *asynq.Task) error {
+	logWithCtx := log.Ctx(ctx).With().Logger()
+	var payload task.PrayerInitializationPayload
+
+	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to unmarshal prayer initialization task payload")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully unmarshaled prayer initialization task payload")
+
+	timeZone, err := queries.GetUserTimeZoneByID(ctx, payload.UserID)
+	if err != nil {
+		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to get user time zone by id")
+		return err
+	}
+	logWithCtx.Info().Str("user_id", payload.UserID).Msg("successfully get user time zone by id")
+
+	location, err := time.LoadLocation(string(timeZone.IndonesiaTimeZone))
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully loaded time zone location")
+
+	now := time.Now().In(location)
+	currentDay := now.Day()
+	prayerCalendar := prayer.PrayerCalendars[timeZone.IndonesiaTimeZone]
+	todayPrayer := prayerCalendar[currentDay-1]
+
+	err = prayer.BulkInsertPrayer(todayPrayer, prayer.BulkInsertPrayerParams{
+		UserID:   payload.UserID,
+		TimeZone: timeZone.IndonesiaTimeZone,
+		Year:     int16(now.Year()),
+		Month:    int16(now.Month()),
+		Day:      int16(currentDay),
+	})
+
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to bluk insert prayer")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully bluk inserted prayer")
+
+	err = prayer.SchedulePrayerInitialization(now, payload.UserID)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to schedule prayer initialization")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully scheduled prayer initialization")
 
 	return nil
 }

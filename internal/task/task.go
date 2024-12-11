@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	TypeUserDowngrade      = "user:downgrade"
-	TypePrayerReminder     = "prayer:remind"
-	TypeLastPrayerReminder = "prayer:last-remind"
-	TypePrayerRenewal      = "prayer:renew"
-	TypeTaskRemoval        = "task:remove"
+	TypeUserDowngrade        = "user:downgrade"
+	TypePrayerReminder       = "prayer:remind"
+	TypeLastPrayerReminder   = "prayer:last-remind"
+	TypePrayerRenewal        = "prayer:renew"
+	TypePrayerInitialization = "prayer:init"
+	TypeTaskRemoval          = "task:remove"
 )
 
 type UserDowngradePayload struct {
@@ -90,10 +91,6 @@ func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
 	return asynq.NewTask(TypePrayerRenewal, bytes, asynq.MaxRetry(3)), nil
 }
 
-func NewTaskRemovalTask() (*asynq.Task, error) {
-	return asynq.NewTask(TypeTaskRemoval, nil, asynq.MaxRetry(3)), nil
-}
-
 func ScheduleTaskRemovalTask() error {
 	now := time.Now()
 	tomorrow := now.AddDate(0, 0, 1)
@@ -109,4 +106,21 @@ func ScheduleTaskRemovalTask() error {
 	}
 
 	return nil
+}
+
+func NewTaskRemovalTask() (*asynq.Task, error) {
+	return asynq.NewTask(TypeTaskRemoval, nil, asynq.MaxRetry(3)), nil
+}
+
+type PrayerInitializationPayload struct {
+	UserID string
+}
+
+func NewPrayerInitialization(payload PrayerInitializationPayload) (*asynq.Task, error) {
+	bytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal prayer initialization task payload")
+	}
+
+	return asynq.NewTask(TypePrayerInitialization, bytes, asynq.MaxRetry(3)), nil
 }

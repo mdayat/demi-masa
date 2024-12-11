@@ -11,6 +11,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CreatePrayersParams struct {
+	UserID   string            `json:"user_id"`
+	Name     string            `json:"name"`
+	Time     int64             `json:"time"`
+	TimeZone IndonesiaTimeZone `json:"time_zone"`
+	Year     int16             `json:"year"`
+	Month    int16             `json:"month"`
+	Day      int16             `json:"day"`
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id, name, description, checked
 `
@@ -385,6 +395,17 @@ func (q *Queries) GetUserPrayerByID(ctx context.Context, id string) (GetUserPray
 	var i GetUserPrayerByIDRow
 	err := row.Scan(&i.PhoneNumber, &i.AccountType, &i.TimeZone)
 	return i, err
+}
+
+const getUserTimeZoneByID = `-- name: GetUserTimeZoneByID :one
+SELECT u.time_zone FROM "user" u WHERE u.id = $1
+`
+
+func (q *Queries) GetUserTimeZoneByID(ctx context.Context, id string) (NullIndonesiaTimeZone, error) {
+	row := q.db.QueryRow(ctx, getUserTimeZoneByID, id)
+	var time_zone NullIndonesiaTimeZone
+	err := row.Scan(&time_zone)
+	return time_zone, err
 }
 
 const getUsersByTimeZone = `-- name: GetUsersByTimeZone :many
