@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"sync"
-	"time"
 
-	"github.com/hibiken/asynq"
 	"github.com/mdayat/demi-masa-be/internal/config"
 	"github.com/mdayat/demi-masa-be/internal/prayer"
 	"github.com/mdayat/demi-masa-be/internal/services"
@@ -15,23 +13,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
-
-func initTaskRemovalTask() error {
-	now := time.Now()
-	tomorrow := now.AddDate(0, 0, 1)
-	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())
-	asynqTask, err := task.NewTaskRemovalTask()
-	if err != nil {
-		return errors.Wrap(err, "failed to create task removal task")
-	}
-
-	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(midnight.Sub(now)))
-	if err != nil {
-		return errors.Wrap(err, "failed to enqueue task removal task")
-	}
-
-	return nil
-}
 
 func main() {
 	config.InitLogger()
@@ -115,9 +96,9 @@ func main() {
 		}
 	}
 
-	err = initTaskRemovalTask()
+	err = task.ScheduleTaskRemovalTask()
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to init task removal task")
+		log.Fatal().Err(err).Msg("failed to schedule task removal task")
 	}
 
 	server, mux := workerserver.New()

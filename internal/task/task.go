@@ -3,8 +3,10 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/mdayat/demi-masa-be/internal/services"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
 )
@@ -90,4 +92,21 @@ func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
 
 func NewTaskRemovalTask() (*asynq.Task, error) {
 	return asynq.NewTask(TypeTaskRemoval, nil, asynq.MaxRetry(3)), nil
+}
+
+func ScheduleTaskRemovalTask() error {
+	now := time.Now()
+	tomorrow := now.AddDate(0, 0, 1)
+	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())
+	asynqTask, err := NewTaskRemovalTask()
+	if err != nil {
+		return errors.Wrap(err, "failed to create task removal task")
+	}
+
+	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(midnight.Sub(now)))
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue task removal task")
+	}
+
+	return nil
 }

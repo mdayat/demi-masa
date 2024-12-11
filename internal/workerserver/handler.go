@@ -265,5 +265,12 @@ func handleTaskRemoval(ctx context.Context, asynqTask *asynq.Task) error {
 	}
 	logWithCtx.Info().Msg("successfully deleted checked tasks")
 
+	err = task.ScheduleTaskRemovalTask()
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to schedule task removal task")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully scheduled task removal task")
+
 	return nil
 }
