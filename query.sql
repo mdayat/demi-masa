@@ -103,6 +103,18 @@ DELETE FROM task WHERE checked = TRUE;
 -- name: DeleteTaskByID :exec
 DELETE FROM task WHERE id = $1;
 
+-- name: GetAndSortPrayers :many
+SELECT
+  p.id,
+  p.name,
+  p.time,
+  p.time_zone,
+  p.status,
+  p.year,
+  p.month,
+  p.day
+FROM prayer p WHERE p.user_id = $1 ORDER BY time ASC;
+
 -- name: CreatePrayers :copyfrom
 INSERT INTO prayer (user_id, name, time, time_zone, year, month, day) VALUES ($1, $2, $3, $4, $5, $6, $7);
 

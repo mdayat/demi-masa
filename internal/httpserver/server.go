@@ -72,8 +72,10 @@ func New() *chi.Mux {
 		r.Put("/tasks/{taskID}", updateTaskHandler)
 		r.Delete("/tasks/{taskID}", deleteTaskHandler)
 
-		r.Get("/subscription-plans", getSubsPlansHandler)
+		r.Get("/prayers", getPrayersHandler)
 		r.Put("/prayers/{prayerID}", updatePrayerHandler)
+
+		r.Get("/subscription-plans", getSubsPlansHandler)
 	})
 	return router
 }

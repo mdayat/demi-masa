@@ -11,6 +11,59 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type prayer struct {
+	ID       string                       `json:"id"`
+	Name     string                       `json:"name"`
+	Time     int64                        `json:"time"`
+	TimeZone repository.IndonesiaTimeZone `json:"time_zone"`
+	Status   repository.PrayerStatus      `json:"status"`
+	Year     int16                        `json:"year"`
+	Month    int16                        `json:"month"`
+	Day      int16                        `json:"day"`
+}
+
+func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
+	logWithCtx := log.Ctx(req.Context()).With().Logger()
+	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+
+	prayers, err := queries.GetAndSortPrayers(req.Context(), userID)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to get prayers based on user id")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully get prayers based on user id")
+
+	respBody := make([]prayer, len(prayers))
+	for i, v := range prayers {
+		prayerID, err := v.ID.Value()
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to get prayer UUID from pgtype.UUID")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		respBody[i] = prayer{
+			ID:       fmt.Sprintf("%s", prayerID),
+			Name:     v.Name,
+			Time:     v.Time,
+			TimeZone: v.TimeZone,
+			Status:   v.Status,
+			Year:     v.Year,
+			Month:    v.Month,
+			Day:      v.Day,
+		}
+	}
+
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to send successful response body")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully sent successful response body")
+}
+
 func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	var body struct {
