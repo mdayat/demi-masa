@@ -467,6 +467,20 @@ func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
 	return err
 }
 
+const updatePrayer = `-- name: UpdatePrayer :exec
+UPDATE prayer SET status = $2 WHERE id = $1
+`
+
+type UpdatePrayerParams struct {
+	ID     pgtype.UUID  `json:"id"`
+	Status PrayerStatus `json:"status"`
+}
+
+func (q *Queries) UpdatePrayer(ctx context.Context, arg UpdatePrayerParams) error {
+	_, err := q.db.Exec(ctx, updatePrayer, arg.ID, arg.Status)
+	return err
+}
+
 const updateTaskByID = `-- name: UpdateTaskByID :exec
 UPDATE task SET name = $2, description = $3, checked = $4 WHERE id = $1
 `

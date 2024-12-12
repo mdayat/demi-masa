@@ -105,3 +105,6 @@ DELETE FROM task WHERE id = $1;
 
 -- name: CreatePrayers :copyfrom
 INSERT INTO prayer (user_id, name, time, time_zone, year, month, day) VALUES ($1, $2, $3, $4, $5, $6, $7);
+
+-- name: UpdatePrayer :exec
+UPDATE prayer SET status = $2 WHERE id = $1;
