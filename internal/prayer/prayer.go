@@ -15,6 +15,7 @@ import (
 	"github.com/mdayat/demi-masa-be/internal/task"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 )
 
 type Prayer struct {
@@ -24,9 +25,6 @@ type Prayer struct {
 
 type Prayers []Prayer
 type PrayerCalendar []Prayers
-
-var PrayerCalendars = make(map[repository.IndonesiaTimeZone]PrayerCalendar)
-var LastPrayers = make(map[repository.IndonesiaTimeZone]Prayers)
 
 var (
 	SubuhPrayerName  = "Subuh"
@@ -249,10 +247,31 @@ func InitPrayerCalendar(timeZone repository.IndonesiaTimeZone) error {
 		return errors.Wrap(err, "failed to parse aladhan prayer calendar")
 	}
 
-	PrayerCalendars[timeZone] = parsedPrayerCalendar
-	LastPrayers[timeZone] = parsedPrayerCalendar[len(parsedPrayerCalendar)-1]
-	numOfDays := len(parsedPrayerCalendar)
+	prayerCalendarJSON, err := json.Marshal(parsedPrayerCalendar)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal parsed aladhan prayer calendar")
+	}
 
+	lastDayPrayer := parsedPrayerCalendar[len(parsedPrayerCalendar)-1]
+	lastDayPrayerJSON, err := json.Marshal(lastDayPrayer)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal last day prayer of parsed aladhan prayer calendar")
+	}
+
+	err = services.GetRedis().Watch(context.TODO(), func(tx *redis.Tx) error {
+		_, err = tx.TxPipelined(context.TODO(), func(pipe redis.Pipeliner) error {
+			pipe.Set(context.TODO(), MakePrayerCalendarKey(timeZone), prayerCalendarJSON, 0)
+			pipe.Set(context.TODO(), MakeLastDayPrayerKey(timeZone), lastDayPrayerJSON, 0)
+			return nil
+		})
+		return err
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "failed to execute redis tx to set prayer calendar and last day prayer")
+	}
+
+	numOfDays := len(parsedPrayerCalendar)
 	err = SchedulePrayerRenewal(
 		numOfDays,
 		location,
@@ -342,66 +361,17 @@ func ScheduleLastPrayerReminder(duration *time.Duration, payload task.LastPrayer
 	return nil
 }
 
-func SchedulePrayerInitialization(now time.Time, userID string) error {
-	tomorrow := now.AddDate(0, 0, 1)
-	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, now.Location())
-	duration := midnight.Sub(now)
-
-	asynqTask, err := task.NewPrayerInitialization(task.PrayerInitializationPayload{UserID: userID})
-	if err != nil {
-		return errors.Wrap(err, "failed to create prayer initialization task")
-	}
-
-	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(duration))
-	if err != nil {
-		return errors.Wrap(err, "failed to enqueue prayer initialization task")
-	}
-
-	return nil
-}
-
-type BulkInsertPrayerParams struct {
-	UserID   string
-	TimeZone repository.IndonesiaTimeZone
-	Year     int16
-	Month    int16
-	Day      int16
-}
-
-func BulkInsertPrayer(todayPrayer Prayers, arg BulkInsertPrayerParams) error {
-	todayPrayerLen := len(todayPrayer) - 1
-	prayersArgs := make([]repository.CreatePrayersParams, 0, todayPrayerLen)
-
-	for _, prayer := range todayPrayer {
-		if prayer.Name == SunriseTimeName {
-			continue
-		}
-
-		prayersArgs = append(prayersArgs, repository.CreatePrayersParams{
-			UserID:   arg.UserID,
-			Name:     prayer.Name,
-			Time:     prayer.Timestamp,
-			TimeZone: arg.TimeZone,
-			Year:     arg.Year,
-			Month:    arg.Month,
-			Day:      arg.Day,
-		})
-	}
-
-	numOfRows, err := services.GetQueries().CreatePrayers(context.TODO(), prayersArgs)
-	if err != nil {
-		return err
-	}
-
-	if numOfRows != int64(todayPrayerLen) {
-		return errors.New("number of created prayer doesn't match with today prayer length")
-	}
-
-	return nil
-}
-
 func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
-	prayerCalendar := PrayerCalendars[timeZone]
+	prayerCalendar, err := GetPrayerCalendar(context.TODO(), timeZone)
+	if err != nil {
+		return errors.Wrap(err, "failed to get prayer calendar")
+	}
+
+	lastDayPrayer, err := GetLastDayPrayer(context.TODO(), timeZone)
+	if err != nil {
+		return errors.Wrap(err, "failed to get last day prayer")
+	}
+
 	users, err := services.GetQueries().GetUsersByTimeZone(
 		context.TODO(),
 		repository.NullIndonesiaTimeZone{
@@ -427,21 +397,20 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 		numOfDays := len(prayerCalendar)
 		isyaPrayer := prayerCalendar[currentDay-1][5]
 
-		var lastPrayers Prayers
 		var lastDay bool
-
 		if (currentDay == numOfDays-1 && currentTimestamp > isyaPrayer.Timestamp) ||
 			(currentDay == numOfDays && currentTimestamp < isyaPrayer.Timestamp) {
 			lastDay = true
 		}
 
-		if currentDay == numOfDays {
-			lastPrayers = LastPrayers[timeZone]
+		var nextPrayer Prayer
+		if currentDay == numOfDays && currentTimestamp < isyaPrayer.Timestamp {
+			nextPrayer = GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentTimestamp)
+		} else {
+			nextPrayer = GetNextPrayer(prayerCalendar, nil, currentDay, currentTimestamp)
 		}
 
-		nextPrayer := GetNextPrayer(prayerCalendar, lastPrayers, currentDay, currentTimestamp)
 		duration := time.Unix(nextPrayer.Timestamp, 0).Sub(now)
-
 		err = SchedulePrayerReminder(
 			&duration,
 			task.PrayerReminderPayload{
@@ -454,24 +423,6 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 
 		if err != nil {
 			return errors.Wrap(err, "failed to schedule prayer reminder")
-		}
-
-		todayPrayer := prayerCalendar[currentDay-1]
-		err = BulkInsertPrayer(todayPrayer, BulkInsertPrayerParams{
-			UserID:   user.ID,
-			TimeZone: timeZone,
-			Year:     int16(now.Year()),
-			Month:    int16(now.Month()),
-			Day:      int16(currentDay),
-		})
-
-		if err != nil {
-			return errors.Wrap(err, "failed to bluk insert prayer")
-		}
-
-		err = SchedulePrayerInitialization(now, user.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to schedule prayer initialization")
 		}
 	}
 

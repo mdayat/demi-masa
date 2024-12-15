@@ -28,6 +28,7 @@ func main() {
 	}
 	defer db.Close()
 
+	services.InitRedis(config.Env.REDIS_URL)
 	services.InitTwilio(config.Env.TWILIO_ACCOUNT_SID, config.Env.TWILIO_AUTH_TOKEN)
 	services.InitAsynq(config.Env.REDIS_URL)
 

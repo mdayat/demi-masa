@@ -14,6 +14,7 @@ import (
 	"github.com/mdayat/demi-masa-be/internal/task"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 )
@@ -61,17 +62,27 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 
-	var prayerCalendar = prayer.PrayerCalendars[user.TimeZone.IndonesiaTimeZone]
-	var lastPrayers prayer.Prayers
-	if payload.LastDay {
-		lastPrayers = prayer.LastPrayers[user.TimeZone.IndonesiaTimeZone]
+	prayerCalendar, err := prayer.GetPrayerCalendar(context.TODO(), user.TimeZone.IndonesiaTimeZone)
+	if err != nil {
+		return errors.Wrap(err, "failed to get prayer calendar")
+	}
+
+	lastDayPrayer, err := prayer.GetLastDayPrayer(context.TODO(), user.TimeZone.IndonesiaTimeZone)
+	if err != nil {
+		return errors.Wrap(err, "failed to get last day prayer")
 	}
 
 	now := time.Now().In(location)
 	currentDay := now.Day()
 	currentTimestamp := now.Unix()
 
-	nextPrayer := prayer.GetNextPrayer(prayerCalendar, lastPrayers, currentDay, currentTimestamp)
+	var nextPrayer prayer.Prayer
+	if payload.LastDay {
+		nextPrayer = prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentTimestamp)
+	} else {
+		nextPrayer = prayer.GetNextPrayer(prayerCalendar, nil, currentDay, currentTimestamp)
+	}
+
 	duration := time.Unix(nextPrayer.Timestamp, 0).Sub(now)
 	numOfDays := len(prayerCalendar)
 
@@ -104,7 +115,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		}
 
 		if payload.PrayerName == prayer.SubuhPrayerName && lastDay {
-			sunriseTime := time.Unix(lastPrayers[1].Timestamp, 0)
+			sunriseTime := time.Unix(lastDayPrayer[1].Timestamp, 0)
 			prayerTimeDistance = sunriseTime.Sub(time.Unix(payload.PrayerTimestamp, 0))
 		}
 
@@ -221,23 +232,45 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 		strings.Split(string(payload.TimeZone), "/")[1],
 	)
 
-	prayerCalendar, err := prayer.GetAladhanPrayerCalendar(URL)
+	unparsedPrayerCalendar, err := prayer.GetAladhanPrayerCalendar(URL)
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("failed to get aladhan prayer calendar")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully get aladhan prayer calendar")
 
-	parsedPrayerCalendar, err := prayer.ParseAladhanPrayerCalendar(prayerCalendar, location, payload.TimeZone)
+	parsedPrayerCalendar, err := prayer.ParseAladhanPrayerCalendar(unparsedPrayerCalendar, location, payload.TimeZone)
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("failed to parse aladhan prayer calendar")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully parsed aladhan prayer calendar")
 
-	oldPrayerCalendar := prayer.PrayerCalendars[payload.TimeZone]
-	prayer.LastPrayers[payload.TimeZone] = oldPrayerCalendar[len(oldPrayerCalendar)-1]
-	prayer.PrayerCalendars[payload.TimeZone] = parsedPrayerCalendar
+	parsedPrayerCalendarJSON, err := json.Marshal(parsedPrayerCalendar)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal parsed aladhan prayer calendar")
+	}
+
+	err = redisClient.Watch(context.TODO(), func(tx *redis.Tx) error {
+		oldPrayerCalendar, err := prayer.GetPrayerCalendar(context.TODO(), payload.TimeZone)
+		if err != nil {
+			return errors.Wrap(err, "failed to get prayer calendar")
+		}
+
+		lastDayPrayer := oldPrayerCalendar[len(oldPrayerCalendar)-1]
+		lastDayPrayerJSON, err := json.Marshal(lastDayPrayer)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal last day prayer of old prayer calendar")
+		}
+
+		_, err = tx.TxPipelined(context.TODO(), func(pipe redis.Pipeliner) error {
+			pipe.Set(context.TODO(), prayer.MakePrayerCalendarKey(payload.TimeZone), parsedPrayerCalendarJSON, 0)
+			pipe.Set(context.TODO(), prayer.MakeLastDayPrayerKey(payload.TimeZone), lastDayPrayerJSON, 0)
+			return nil
+		})
+
+		return err
+	})
 
 	numOfDays := len(parsedPrayerCalendar)
 	err = prayer.SchedulePrayerRenewal(
@@ -271,59 +304,6 @@ func handleTaskRemoval(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 	logWithCtx.Info().Msg("successfully scheduled task removal task")
-
-	return nil
-}
-
-func handlePrayerInitialization(ctx context.Context, asynqTask *asynq.Task) error {
-	logWithCtx := log.Ctx(ctx).With().Logger()
-	var payload task.PrayerInitializationPayload
-
-	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal prayer initialization task payload")
-		return err
-	}
-	logWithCtx.Info().Msg("successfully unmarshaled prayer initialization task payload")
-
-	timeZone, err := queries.GetUserTimeZoneByID(ctx, payload.UserID)
-	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to get user time zone by id")
-		return err
-	}
-	logWithCtx.Info().Str("user_id", payload.UserID).Msg("successfully get user time zone by id")
-
-	location, err := time.LoadLocation(string(timeZone.IndonesiaTimeZone))
-	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
-		return err
-	}
-	logWithCtx.Info().Msg("successfully loaded time zone location")
-
-	now := time.Now().In(location)
-	currentDay := now.Day()
-	prayerCalendar := prayer.PrayerCalendars[timeZone.IndonesiaTimeZone]
-	todayPrayer := prayerCalendar[currentDay-1]
-
-	err = prayer.BulkInsertPrayer(todayPrayer, prayer.BulkInsertPrayerParams{
-		UserID:   payload.UserID,
-		TimeZone: timeZone.IndonesiaTimeZone,
-		Year:     int16(now.Year()),
-		Month:    int16(now.Month()),
-		Day:      int16(currentDay),
-	})
-
-	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to bluk insert prayer")
-		return err
-	}
-	logWithCtx.Info().Msg("successfully bluk inserted prayer")
-
-	err = prayer.SchedulePrayerInitialization(now, payload.UserID)
-	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule prayer initialization")
-		return err
-	}
-	logWithCtx.Info().Msg("successfully scheduled prayer initialization")
 
 	return nil
 }
