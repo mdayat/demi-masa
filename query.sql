@@ -25,6 +25,9 @@ SELECT u.phone_number FROM "user" u WHERE u.id = $1;
 -- name: GetUserTimeZoneByID :one
 SELECT u.time_zone FROM "user" u WHERE u.id = $1;
 
+-- name: GetUserSubsByID :one
+SELECT u.account_type FROM "user" u WHERE u.id = $1;
+
 -- name: UpdateUserPhoneNumber :exec
 UPDATE "user" SET phone_number = $2, phone_verified = $3 WHERE id = $1;
 
@@ -103,5 +106,6 @@ DELETE FROM task WHERE checked = TRUE;
 -- name: DeleteTaskByID :exec
 DELETE FROM task WHERE id = $1;
 
--- name: UpdatePrayer :exec
-UPDATE prayer SET status = $2 WHERE id = $1;
+-- name: CreatePrayer :exec
+INSERT INTO prayer (user_id, name, status, year, month, day)
+VALUES ($1, $2, $3, $4, $5, $6);

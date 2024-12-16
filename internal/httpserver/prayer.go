@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mdayat/demi-masa-be/internal/prayer"
+	"github.com/mdayat/demi-masa-be/internal/task"
 	"github.com/mdayat/demi-masa-be/repository"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
@@ -81,17 +82,13 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 		usedPrayer = todayPrayer
 	}
 
-	respBody := make([]prayerRespBody, 0, len(usedPrayer)-1)
-	for _, v := range usedPrayer {
-		if v.Name == prayer.SunriseTimeName {
-			continue
-		}
-
-		respBody = append(respBody, prayerRespBody{
+	respBody := make([]prayerRespBody, len(usedPrayer))
+	for i, v := range usedPrayer {
+		respBody[i] = prayerRespBody{
 			Name:     v.Name,
 			UnixTime: v.UnixTime,
 			TimeZone: userTimeZone.IndonesiaTimeZone,
-		})
+		}
 	}
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
@@ -103,7 +100,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Msg("successfully sent successful response body")
 }
 
-func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
+func createPrayerHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	var body struct {
 		PrayerName     string                       `json:"prayer_name" validate:"required"`
@@ -183,35 +180,60 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 		prayerStatus = repository.PrayerStatusONTIME
 	}
 
-	prayerID := chi.URLParam(req, "prayerID")
-	prayerIDBytes, err := uuid.Parse(prayerID)
+	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+	userAccountType, err := queries.GetUserSubsByID(req.Context(), userID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to parse prayer uuid string to bytes")
+		logWithCtx.Error().Err(err).Msg("failed to get user account type by id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully parsed prayer uuid string to bytes")
+	logWithCtx.Info().Msg("successfully got user account type by id")
 
-	err = queries.UpdatePrayer(req.Context(), repository.UpdatePrayerParams{
-		ID:     pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
+	err = queries.CreatePrayer(req.Context(), repository.CreatePrayerParams{
+		UserID: userID,
+		Name:   body.PrayerName,
 		Status: prayerStatus,
+		Year:   int16(prayerTime.Year()),
+		Month:  int16(prayerTime.Month()),
+		Day:    int16(prayerTime.Day()),
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("prayer_id", prayerID).Msg("failed to update prayer status by id")
-		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		ErrUniqueViolation := "23505"
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == ErrUniqueViolation {
+			errMsg := fmt.Sprintf(
+				"Kamu telah mencentang salat %s, kamu tidak dapat mencentang lebih dari sekali.",
+				body.PrayerName,
+			)
+
+			logWithCtx.Warn().Msg(pgErr.Message)
+			http.Error(res, errMsg, http.StatusBadRequest)
+		} else {
+			logWithCtx.Error().Err(err).Msg("failed to create prayer")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
-	logWithCtx.Info().Str("prayer_id", prayerID).Msg("successfully updated prayer status by id")
+	logWithCtx.Info().Msg("successfully created prayer")
 
-	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
-	asynqTaskID := fmt.Sprintf("%s:%s:last", userID, body.PrayerName)
+	if userAccountType == repository.AccountTypePREMIUM {
+		asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName)
+		queueName := "default"
 
-	err = asynqInspector.DeleteTask("default", asynqTaskID)
-	if err != nil {
-		logWithCtx.Error().Err(err).Str("task_id", asynqTaskID).Msg("failed to delete last prayer reminder")
-		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+		err = asynqInspector.DeleteTask(queueName, asynqTaskID)
+		if err != nil {
+			if errors.Is(err, asynq.ErrQueueNotFound) {
+				logWithCtx.Error().Err(err).Str("queue_name", queueName).Send()
+			} else if errors.Is(err, asynq.ErrTaskNotFound) {
+				logWithCtx.Error().Err(err).Str("task_id", asynqTaskID).Send()
+			} else {
+				logWithCtx.Error().Err(err).Str("task_id", asynqTaskID).Msg("failed to delete last prayer reminder")
+				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+		}
+		logWithCtx.Info().Str("task_id", asynqTaskID).Msg("successfully deleted last prayer reminder")
 	}
-	logWithCtx.Info().Str("task_id", asynqTaskID).Msg("successfully deleted last prayer reminder")
 }

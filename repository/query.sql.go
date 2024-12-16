@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createPrayer = `-- name: CreatePrayer :exec
+INSERT INTO prayer (user_id, name, status, year, month, day)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreatePrayerParams struct {
+	UserID string       `json:"user_id"`
+	Name   string       `json:"name"`
+	Status PrayerStatus `json:"status"`
+	Year   int16        `json:"year"`
+	Month  int16        `json:"month"`
+	Day    int16        `json:"day"`
+}
+
+func (q *Queries) CreatePrayer(ctx context.Context, arg CreatePrayerParams) error {
+	_, err := q.db.Exec(ctx, createPrayer,
+		arg.UserID,
+		arg.Name,
+		arg.Status,
+		arg.Year,
+		arg.Month,
+		arg.Day,
+	)
+	return err
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id, name, description, checked
 `
@@ -387,6 +413,17 @@ func (q *Queries) GetUserPrayerByID(ctx context.Context, id string) (GetUserPray
 	return i, err
 }
 
+const getUserSubsByID = `-- name: GetUserSubsByID :one
+SELECT u.account_type FROM "user" u WHERE u.id = $1
+`
+
+func (q *Queries) GetUserSubsByID(ctx context.Context, id string) (AccountType, error) {
+	row := q.db.QueryRow(ctx, getUserSubsByID, id)
+	var account_type AccountType
+	err := row.Scan(&account_type)
+	return account_type, err
+}
+
 const getUserTimeZoneByID = `-- name: GetUserTimeZoneByID :one
 SELECT u.time_zone FROM "user" u WHERE u.id = $1
 `
@@ -454,20 +491,6 @@ DELETE FROM task WHERE checked = TRUE
 
 func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, removeCheckedTask)
-	return err
-}
-
-const updatePrayer = `-- name: UpdatePrayer :exec
-UPDATE prayer SET status = $2 WHERE id = $1
-`
-
-type UpdatePrayerParams struct {
-	ID     pgtype.UUID  `json:"id"`
-	Status PrayerStatus `json:"status"`
-}
-
-func (q *Queries) UpdatePrayer(ctx context.Context, arg UpdatePrayerParams) error {
-	_, err := q.db.Exec(ctx, updatePrayer, arg.ID, arg.Status)
 	return err
 }
 
