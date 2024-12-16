@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -105,8 +106,10 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	var body struct {
-		Name   string                  `json:"name" validate:"required"`
-		Status repository.PrayerStatus `json:"status" validate:"required"`
+		PrayerName     string                       `json:"prayer_name" validate:"required"`
+		PrayerUnixTime int64                        `json:"prayer_unix_time" validate:"required"`
+		TimeZone       repository.IndonesiaTimeZone `json:"time_zone" validate:"required"`
+		CheckedAt      int64                        `json:"checked_at" validate:"required"`
 	}
 
 	err := decodeAndValidateJSONBody(req, &body)
@@ -116,6 +119,69 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logWithCtx.Info().Msg("successfully decoded and validated request body")
+
+	prayerCalendar, err := prayer.GetPrayerCalendar(req.Context(), body.TimeZone)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to get prayer calendar")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully got prayer calendar")
+
+	checkedTime := time.Unix(body.CheckedAt, 0)
+	isLastDay := prayer.IsLastDay(&checkedTime)
+	prayerTime := time.Unix(body.PrayerUnixTime, 0)
+
+	var isIsyaOfLastDay bool
+	if isLastDay && body.PrayerName == prayer.IsyaPrayerName && checkedTime.Day() == prayerTime.Day() {
+		isIsyaOfLastDay = true
+	}
+
+	var lastDayPrayer prayer.Prayers
+	if isLastDay && isIsyaOfLastDay == false {
+		lastDayPrayer, err = prayer.GetLastDayPrayer(req.Context(), body.TimeZone)
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to get last day prayer")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		logWithCtx.Info().Msg("successfully got last day prayer")
+	}
+
+	checkedDay := checkedTime.Day()
+	if isLastDay && isIsyaOfLastDay {
+		checkedDay = 1
+	}
+
+	var nextPrayer prayer.Prayer
+	if body.PrayerName == prayer.SubuhPrayerName && isLastDay {
+		lastDayPrayer, err = prayer.GetLastDayPrayer(req.Context(), body.TimeZone)
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to get last day prayer")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		logWithCtx.Info().Msg("successfully got last day prayer")
+
+		sunriseTime := lastDayPrayer[1]
+		nextPrayer = sunriseTime
+	} else if body.PrayerName == prayer.SubuhPrayerName && isLastDay == false {
+		sunriseTime := prayerCalendar[checkedDay-1][1]
+		nextPrayer = sunriseTime
+	} else {
+		nextPrayer = prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, checkedDay, body.PrayerUnixTime)
+	}
+
+	nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0)
+	prayersDistance := nextPrayerTime.Sub(prayerTime)
+
+	distanceQuarter := int(math.Round(prayersDistance.Seconds() * 0.25))
+	distanceToNextPrayer := nextPrayerTime.Sub(checkedTime)
+
+	prayerStatus := repository.PrayerStatusLATE
+	if distanceToNextPrayer.Seconds()-float64(distanceQuarter) > 0 {
+		prayerStatus = repository.PrayerStatusONTIME
+	}
 
 	prayerID := chi.URLParam(req, "prayerID")
 	prayerIDBytes, err := uuid.Parse(prayerID)
@@ -128,7 +194,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = queries.UpdatePrayer(req.Context(), repository.UpdatePrayerParams{
 		ID:     pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
-		Status: body.Status,
+		Status: prayerStatus,
 	})
 
 	if err != nil {
@@ -139,7 +205,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Str("prayer_id", prayerID).Msg("successfully updated prayer status by id")
 
 	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
-	asynqTaskID := fmt.Sprintf("%s:%s:last", userID, body.Name)
+	asynqTaskID := fmt.Sprintf("%s:%s:last", userID, body.PrayerName)
 
 	err = asynqInspector.DeleteTask("default", asynqTaskID)
 	if err != nil {
