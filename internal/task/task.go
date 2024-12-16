@@ -38,10 +38,10 @@ func NewUserDowngradeTask(payload UserDowngradePayload) (*asynq.Task, error) {
 }
 
 type PrayerReminderPayload struct {
-	UserID          string
-	PrayerName      string
-	PrayerTimestamp int64
-	LastDay         bool
+	UserID         string
+	PrayerName     string
+	PrayerUnixTime int64
+	IsLastDay      bool
 }
 
 func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
