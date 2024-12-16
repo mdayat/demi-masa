@@ -3,56 +3,94 @@ package httpserver
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/mdayat/demi-masa-be/internal/prayer"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/rs/zerolog/log"
 )
 
-type prayer struct {
-	ID       string                       `json:"id"`
+type prayerRespBody struct {
 	Name     string                       `json:"name"`
-	Time     int64                        `json:"time"`
+	UnixTime int64                        `json:"unix_time"`
 	TimeZone repository.IndonesiaTimeZone `json:"time_zone"`
-	Status   repository.PrayerStatus      `json:"status"`
-	Year     int16                        `json:"year"`
-	Month    int16                        `json:"month"`
-	Day      int16                        `json:"day"`
 }
 
 func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
 
-	prayers, err := queries.GetAndSortPrayers(req.Context(), userID)
+	userTimeZone, err := queries.GetUserTimeZoneByID(req.Context(), userID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get prayers based on user id")
+		logWithCtx.Error().Err(err).Msg("failed to get user time zone by id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully get prayers based on user id")
+	logWithCtx.Info().Msg("successfully got user time zone by id")
 
-	respBody := make([]prayer, len(prayers))
-	for i, v := range prayers {
-		prayerID, err := v.ID.Value()
+	location, err := time.LoadLocation(string(userTimeZone.IndonesiaTimeZone))
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully loaded time zone location")
+
+	prayerCalendar, err := prayer.GetPrayerCalendar(req.Context(), userTimeZone.IndonesiaTimeZone)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to get prayer calendar")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully got prayer calendar")
+
+	now := time.Now().In(location)
+	currentDay := now.Day()
+	currentUnixTime := now.Unix()
+	isLastDay := prayer.IsLastDay(&now)
+
+	todayPrayer := prayerCalendar[currentDay-1]
+	subuhPrayer := todayPrayer[0]
+	var usedPrayer prayer.Prayers
+
+	if currentDay == 1 && currentUnixTime < subuhPrayer.UnixTime ||
+		isLastDay && currentUnixTime > subuhPrayer.UnixTime {
+		usedPrayer, err = prayer.GetLastDayPrayer(req.Context(), userTimeZone.IndonesiaTimeZone)
 		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to get prayer UUID from pgtype.UUID")
+			logWithCtx.Error().Err(err).Msg("failed to get last day prayer")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-
-		respBody[i] = prayer{
-			ID:       fmt.Sprintf("%s", prayerID),
-			Name:     v.Name,
-			Time:     v.Time,
-			TimeZone: v.TimeZone,
-			Status:   v.Status,
-			Year:     v.Year,
-			Month:    v.Month,
-			Day:      v.Day,
+		logWithCtx.Info().Msg("successfully got last day prayer")
+	} else if isLastDay && currentUnixTime < subuhPrayer.UnixTime {
+		usedPrayer, err = prayer.GetPenultimateDayPrayer(req.Context(), userTimeZone.IndonesiaTimeZone)
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to get penultimate day prayer")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
+		logWithCtx.Info().Msg("successfully got last day prayer")
+	} else if isLastDay == false && currentUnixTime < subuhPrayer.UnixTime {
+		yesterdayPrayer := prayerCalendar[currentDay-2]
+		usedPrayer = yesterdayPrayer
+	} else {
+		usedPrayer = todayPrayer
+	}
+
+	respBody := make([]prayerRespBody, 0, len(usedPrayer)-1)
+	for _, v := range usedPrayer {
+		if v.Name == prayer.SunriseTimeName {
+			continue
+		}
+
+		respBody = append(respBody, prayerRespBody{
+			Name:     v.Name,
+			UnixTime: v.UnixTime,
+			TimeZone: userTimeZone.IndonesiaTimeZone,
+		})
 	}
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})

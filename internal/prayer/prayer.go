@@ -407,11 +407,13 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 		isyaPrayer := prayerCalendar[currentDay-1][5]
 
 		var isNextPrayerLastDay bool
-		var nextPrayer Prayer
-
 		if (isPenultimateDay && currentUnixTime > isyaPrayer.UnixTime) ||
 			(isLastDay && currentUnixTime < isyaPrayer.UnixTime) {
 			isNextPrayerLastDay = true
+		}
+
+		var nextPrayer Prayer
+		if isLastDay && currentUnixTime < isyaPrayer.UnixTime {
 			nextPrayer = GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentUnixTime)
 		} else {
 			nextPrayer = GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)

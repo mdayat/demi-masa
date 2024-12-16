@@ -268,11 +268,10 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 			return errors.Wrap(err, "failed to marshal last day prayer of old prayer calendar")
 		}
 
-		duration := time.Hour * 24 * 3
 		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.Set(ctx, prayer.MakePrayerCalendarKey(payload.TimeZone), parsedPrayerCalendarJSON, 0)
-			pipe.Set(ctx, prayer.MakeLastDayPrayerKey(payload.TimeZone), lastDayPrayerJSON, duration)
-			pipe.Set(ctx, prayer.MakePenultimateDayPrayerKey(payload.TimeZone), penultimateDayPrayerJSON, duration)
+			pipe.Set(ctx, prayer.MakeLastDayPrayerKey(payload.TimeZone), lastDayPrayerJSON, 0)
+			pipe.Set(ctx, prayer.MakePenultimateDayPrayerKey(payload.TimeZone), penultimateDayPrayerJSON, 0)
 			return nil
 		})
 

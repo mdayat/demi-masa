@@ -54,6 +54,7 @@ func New() *chi.Mux {
 
 	router.Post("/login", loginHandler)
 	router.Post("/transactions/callback", tripayWebhookHandler)
+	router.Get("/prayers", getPrayersHandler)
 
 	router.Group(func(r chi.Router) {
 		r.Use(authenticate)
@@ -72,7 +73,6 @@ func New() *chi.Mux {
 		r.Put("/tasks/{taskID}", updateTaskHandler)
 		r.Delete("/tasks/{taskID}", deleteTaskHandler)
 
-		r.Get("/prayers", getPrayersHandler)
 		r.Put("/prayers/{prayerID}", updatePrayerHandler)
 
 		r.Get("/subscription-plans", getSubsPlansHandler)
