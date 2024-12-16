@@ -19,8 +19,8 @@ import (
 )
 
 type Prayer struct {
-	Name      string
-	Timestamp int64
+	Name     string
+	UnixTime int64
 }
 
 type Prayers []Prayer
@@ -84,8 +84,8 @@ func ParseAladhanPrayerCalendar(
 		}
 
 		prayers[0] = Prayer{
-			Name:      SubuhPrayerName,
-			Timestamp: subuh.Unix(),
+			Name:     SubuhPrayerName,
+			UnixTime: subuh.Unix(),
 		}
 
 		sunrise, err := parsePrayerTime(location, timestamp, prayer.Timings.Sunrise)
@@ -94,8 +94,8 @@ func ParseAladhanPrayerCalendar(
 		}
 
 		prayers[1] = Prayer{
-			Name:      SunriseTimeName,
-			Timestamp: sunrise.Unix(),
+			Name:     SunriseTimeName,
+			UnixTime: sunrise.Unix(),
 		}
 
 		zuhur, err := parsePrayerTime(location, timestamp, prayer.Timings.Dhuhr)
@@ -104,8 +104,8 @@ func ParseAladhanPrayerCalendar(
 		}
 
 		prayers[2] = Prayer{
-			Name:      ZuhurPrayerName,
-			Timestamp: zuhur.Unix(),
+			Name:     ZuhurPrayerName,
+			UnixTime: zuhur.Unix(),
 		}
 
 		asar, err := parsePrayerTime(location, timestamp, prayer.Timings.Asr)
@@ -114,8 +114,8 @@ func ParseAladhanPrayerCalendar(
 		}
 
 		prayers[3] = Prayer{
-			Name:      AsarPrayerName,
-			Timestamp: asar.Unix(),
+			Name:     AsarPrayerName,
+			UnixTime: asar.Unix(),
 		}
 
 		magrib, err := parsePrayerTime(location, timestamp, prayer.Timings.Maghrib)
@@ -124,8 +124,8 @@ func ParseAladhanPrayerCalendar(
 		}
 
 		prayers[4] = Prayer{
-			Name:      MagribPrayerName,
-			Timestamp: magrib.Unix(),
+			Name:     MagribPrayerName,
+			UnixTime: magrib.Unix(),
 		}
 
 		isya, err := parsePrayerTime(location, timestamp, prayer.Timings.Isha)
@@ -134,8 +134,8 @@ func ParseAladhanPrayerCalendar(
 		}
 
 		prayers[5] = Prayer{
-			Name:      IsyaPrayerName,
-			Timestamp: isya.Unix(),
+			Name:     IsyaPrayerName,
+			UnixTime: isya.Unix(),
 		}
 
 		parsedPrayerCalendar[i] = prayers
@@ -252,6 +252,12 @@ func InitPrayerCalendar(timeZone repository.IndonesiaTimeZone) error {
 		return errors.Wrap(err, "failed to marshal parsed aladhan prayer calendar")
 	}
 
+	penultimateDayPrayer := parsedPrayerCalendar[len(parsedPrayerCalendar)-2]
+	penultimateDayPrayerJSON, err := json.Marshal(penultimateDayPrayer)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal penultimate day prayer of parsed aladhan prayer calendar")
+	}
+
 	lastDayPrayer := parsedPrayerCalendar[len(parsedPrayerCalendar)-1]
 	lastDayPrayerJSON, err := json.Marshal(lastDayPrayer)
 	if err != nil {
@@ -262,6 +268,7 @@ func InitPrayerCalendar(timeZone repository.IndonesiaTimeZone) error {
 		_, err = tx.TxPipelined(context.TODO(), func(pipe redis.Pipeliner) error {
 			pipe.Set(context.TODO(), MakePrayerCalendarKey(timeZone), prayerCalendarJSON, 0)
 			pipe.Set(context.TODO(), MakeLastDayPrayerKey(timeZone), lastDayPrayerJSON, 0)
+			pipe.Set(context.TODO(), MakePenultimateDayPrayerKey(timeZone), penultimateDayPrayerJSON, 0)
 			return nil
 		})
 		return err
@@ -301,7 +308,7 @@ func GetNextPrayer(
 				continue
 			}
 
-			if prayer.Timestamp > currentTimestamp {
+			if prayer.UnixTime > currentTimestamp {
 				nextPrayer = prayer
 				break
 			}
@@ -318,7 +325,7 @@ func GetNextPrayer(
 				continue
 			}
 
-			if prayer.Timestamp > currentTimestamp {
+			if prayer.UnixTime > currentTimestamp {
 				nextPrayer = prayer
 				break
 			}
@@ -389,35 +396,35 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 		return errors.Wrap(err, "failed to load time zone location")
 	}
 
-	for _, user := range users {
-		now := time.Now().In(location)
-		currentDay := now.Day()
-		currentTimestamp := now.Unix()
+	now := time.Now().In(location)
+	currentDay := now.Day()
 
-		numOfDays := len(prayerCalendar)
+	for _, user := range users {
+		now = time.Now().In(location)
+		currentUnixTime := now.Unix()
+		isLastDay := IsLastDay(&now)
+		isPenultimateDay := IsPenultimateDay(&now)
 		isyaPrayer := prayerCalendar[currentDay-1][5]
 
-		var lastDay bool
-		if (currentDay == numOfDays-1 && currentTimestamp > isyaPrayer.Timestamp) ||
-			(currentDay == numOfDays && currentTimestamp < isyaPrayer.Timestamp) {
-			lastDay = true
-		}
-
+		var isNextPrayerLastDay bool
 		var nextPrayer Prayer
-		if currentDay == numOfDays && currentTimestamp < isyaPrayer.Timestamp {
-			nextPrayer = GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentTimestamp)
+
+		if (isPenultimateDay && currentUnixTime > isyaPrayer.UnixTime) ||
+			(isLastDay && currentUnixTime < isyaPrayer.UnixTime) {
+			isNextPrayerLastDay = true
+			nextPrayer = GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentUnixTime)
 		} else {
-			nextPrayer = GetNextPrayer(prayerCalendar, nil, currentDay, currentTimestamp)
+			nextPrayer = GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
 		}
 
-		duration := time.Unix(nextPrayer.Timestamp, 0).Sub(now)
+		duration := time.Unix(nextPrayer.UnixTime, 0).Sub(now)
 		err = SchedulePrayerReminder(
 			&duration,
 			task.PrayerReminderPayload{
-				UserID:          user.ID,
-				PrayerName:      nextPrayer.Name,
-				PrayerTimestamp: nextPrayer.Timestamp,
-				LastDay:         lastDay,
+				UserID:         user.ID,
+				PrayerName:     nextPrayer.Name,
+				PrayerUnixTime: nextPrayer.UnixTime,
+				IsLastDay:      isNextPrayerLastDay,
 			},
 		)
 
