@@ -76,8 +76,6 @@ CREATE TABLE prayer (
   id UUID DEFAULT gen_random_uuid(),
   user_id VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
-  time BIGINT NOT NULL,
-  time_zone indonesia_time_zone NOT NULL,
   status prayer_status DEFAULT 'MISSED' NOT NULL,
   year SMALLINT NOT NULL,
   month SMALLINT NOT NULL,
@@ -89,7 +87,9 @@ CREATE TABLE prayer (
     FOREIGN KEY (user_id)
     REFERENCES "user"(id)
     ON UPDATE CASCADE
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
+
+  CONSTRAINT unique_prayer UNIQUE (name, year, month, day)
 );
 
 CREATE TABLE task (

@@ -11,16 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type CreatePrayersParams struct {
-	UserID   string            `json:"user_id"`
-	Name     string            `json:"name"`
-	Time     int64             `json:"time"`
-	TimeZone IndonesiaTimeZone `json:"time_zone"`
-	Year     int16             `json:"year"`
-	Month    int16             `json:"month"`
-	Day      int16             `json:"day"`
-}
-
 const createTask = `-- name: CreateTask :one
 INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id, name, description, checked
 `
@@ -135,59 +125,6 @@ func (q *Queries) DeleteUserByID(ctx context.Context, id string) (string, error)
 	row := q.db.QueryRow(ctx, deleteUserByID, id)
 	err := row.Scan(&id)
 	return id, err
-}
-
-const getAndSortPrayers = `-- name: GetAndSortPrayers :many
-SELECT
-  p.id,
-  p.name,
-  p.time,
-  p.time_zone,
-  p.status,
-  p.year,
-  p.month,
-  p.day
-FROM prayer p WHERE p.user_id = $1 ORDER BY time ASC
-`
-
-type GetAndSortPrayersRow struct {
-	ID       pgtype.UUID       `json:"id"`
-	Name     string            `json:"name"`
-	Time     int64             `json:"time"`
-	TimeZone IndonesiaTimeZone `json:"time_zone"`
-	Status   PrayerStatus      `json:"status"`
-	Year     int16             `json:"year"`
-	Month    int16             `json:"month"`
-	Day      int16             `json:"day"`
-}
-
-func (q *Queries) GetAndSortPrayers(ctx context.Context, userID string) ([]GetAndSortPrayersRow, error) {
-	rows, err := q.db.Query(ctx, getAndSortPrayers, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAndSortPrayersRow
-	for rows.Next() {
-		var i GetAndSortPrayersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Time,
-			&i.TimeZone,
-			&i.Status,
-			&i.Year,
-			&i.Month,
-			&i.Day,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getSubsPlanByID = `-- name: GetSubsPlanByID :one
