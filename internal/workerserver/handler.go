@@ -62,43 +62,46 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 
-	prayerCalendar, err := prayer.GetPrayerCalendar(context.TODO(), user.TimeZone.IndonesiaTimeZone)
+	prayerCalendar, err := prayer.GetPrayerCalendar(ctx, user.TimeZone.IndonesiaTimeZone)
 	if err != nil {
 		return errors.Wrap(err, "failed to get prayer calendar")
 	}
 
-	lastDayPrayer, err := prayer.GetLastDayPrayer(context.TODO(), user.TimeZone.IndonesiaTimeZone)
-	if err != nil {
-		return errors.Wrap(err, "failed to get last day prayer")
+	prayerTime := time.Unix(payload.PrayerUnixTime, 0)
+	isLastDay := prayer.IsLastDay(&prayerTime)
+	isPenultimateDay := prayer.IsPenultimateDay(&prayerTime)
+
+	var lastDayPrayer prayer.Prayers
+	if payload.IsLastDay && payload.PrayerName != prayer.IsyaPrayerName {
+		lastDayPrayer, err = prayer.GetLastDayPrayer(ctx, user.TimeZone.IndonesiaTimeZone)
+		if err != nil {
+			return errors.Wrap(err, "failed to get last day prayer")
+		}
 	}
+
+	var isNextPrayerLastDay bool
+	if (isPenultimateDay && payload.PrayerName == prayer.IsyaPrayerName) ||
+		(isLastDay && payload.PrayerName != prayer.IsyaPrayerName) {
+		isNextPrayerLastDay = true
+	}
+
+	prayerDay := prayerTime.Day()
+	if isLastDay && payload.PrayerName == prayer.IsyaPrayerName {
+		prayerDay = 1
+	}
+
+	nextPrayer := prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, prayerDay, payload.PrayerUnixTime)
+	nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0)
 
 	now := time.Now().In(location)
-	currentDay := now.Day()
-	currentTimestamp := now.Unix()
-
-	var nextPrayer prayer.Prayer
-	if payload.LastDay {
-		nextPrayer = prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentTimestamp)
-	} else {
-		nextPrayer = prayer.GetNextPrayer(prayerCalendar, nil, currentDay, currentTimestamp)
-	}
-
-	duration := time.Unix(nextPrayer.Timestamp, 0).Sub(now)
-	numOfDays := len(prayerCalendar)
-
-	var lastDay bool
-	if (currentDay == numOfDays-1 && payload.PrayerName == prayer.IsyaPrayerName) ||
-		(currentDay == numOfDays && payload.PrayerName != prayer.IsyaPrayerName) {
-		lastDay = true
-	}
-
+	duration := nextPrayerTime.Sub(now)
 	err = prayer.SchedulePrayerReminder(
 		&duration,
 		task.PrayerReminderPayload{
-			UserID:          payload.UserID,
-			PrayerName:      nextPrayer.Name,
-			PrayerTimestamp: nextPrayer.Timestamp,
-			LastDay:         lastDay,
+			UserID:         payload.UserID,
+			PrayerName:     nextPrayer.Name,
+			PrayerUnixTime: nextPrayer.UnixTime,
+			IsLastDay:      isNextPrayerLastDay,
 		},
 	)
 
@@ -110,19 +113,15 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 
 	if user.AccountType == repository.AccountTypePREMIUM {
 		var prayerTimeDistance time.Duration
-		if payload.PrayerName != prayer.SubuhPrayerName {
-			prayerTimeDistance = time.Unix(nextPrayer.Timestamp, 0).Sub(time.Unix(payload.PrayerTimestamp, 0))
-		}
-
-		if payload.PrayerName == prayer.SubuhPrayerName && lastDay {
-			sunriseTime := time.Unix(lastDayPrayer[1].Timestamp, 0)
-			prayerTimeDistance = sunriseTime.Sub(time.Unix(payload.PrayerTimestamp, 0))
-		}
-
-		if payload.PrayerName == prayer.SubuhPrayerName && lastDay == false {
-			todayPrayer := prayerCalendar[currentDay-1]
-			sunriseTime := time.Unix(todayPrayer[1].Timestamp, 0)
-			prayerTimeDistance = sunriseTime.Sub(time.Unix(payload.PrayerTimestamp, 0))
+		if payload.PrayerName == prayer.SubuhPrayerName && isLastDay {
+			sunriseTime := time.Unix(lastDayPrayer[1].UnixTime, 0)
+			prayerTimeDistance = sunriseTime.Sub(prayerTime)
+		} else if payload.PrayerName == prayer.SubuhPrayerName && isLastDay == false {
+			todayPrayer := prayerCalendar[prayerDay-1]
+			sunriseTime := time.Unix(todayPrayer[1].UnixTime, 0)
+			prayerTimeDistance = sunriseTime.Sub(prayerTime)
+		} else {
+			prayerTimeDistance = nextPrayerTime.Sub(prayerTime)
 		}
 
 		quarterTime := int(math.Round(prayerTimeDistance.Seconds() * 0.25))
@@ -251,10 +250,16 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 		return errors.Wrap(err, "failed to marshal parsed aladhan prayer calendar")
 	}
 
-	err = redisClient.Watch(context.TODO(), func(tx *redis.Tx) error {
-		oldPrayerCalendar, err := prayer.GetPrayerCalendar(context.TODO(), payload.TimeZone)
+	err = redisClient.Watch(ctx, func(tx *redis.Tx) error {
+		oldPrayerCalendar, err := prayer.GetPrayerCalendar(ctx, payload.TimeZone)
 		if err != nil {
 			return errors.Wrap(err, "failed to get prayer calendar")
+		}
+
+		penultimateDayPrayer := parsedPrayerCalendar[len(parsedPrayerCalendar)-2]
+		penultimateDayPrayerJSON, err := json.Marshal(penultimateDayPrayer)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal penultimate day prayer of old prayer calendar")
 		}
 
 		lastDayPrayer := oldPrayerCalendar[len(oldPrayerCalendar)-1]
@@ -263,9 +268,11 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 			return errors.Wrap(err, "failed to marshal last day prayer of old prayer calendar")
 		}
 
-		_, err = tx.TxPipelined(context.TODO(), func(pipe redis.Pipeliner) error {
-			pipe.Set(context.TODO(), prayer.MakePrayerCalendarKey(payload.TimeZone), parsedPrayerCalendarJSON, 0)
-			pipe.Set(context.TODO(), prayer.MakeLastDayPrayerKey(payload.TimeZone), lastDayPrayerJSON, 0)
+		duration := time.Hour * 24 * 3
+		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.Set(ctx, prayer.MakePrayerCalendarKey(payload.TimeZone), parsedPrayerCalendarJSON, 0)
+			pipe.Set(ctx, prayer.MakeLastDayPrayerKey(payload.TimeZone), lastDayPrayerJSON, duration)
+			pipe.Set(ctx, prayer.MakePenultimateDayPrayerKey(payload.TimeZone), penultimateDayPrayerJSON, duration)
 			return nil
 		})
 
