@@ -220,12 +220,10 @@ func createPrayerHandler(res http.ResponseWriter, req *http.Request) {
 
 	if userAccountType == repository.AccountTypePREMIUM {
 		asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName)
-		queueName := "default"
-
-		err = asynqInspector.DeleteTask(queueName, asynqTaskID)
+		err = asynqInspector.DeleteTask(task.DefaultQueue, asynqTaskID)
 		if err != nil {
 			if errors.Is(err, asynq.ErrQueueNotFound) {
-				logWithCtx.Error().Err(err).Str("queue_name", queueName).Send()
+				logWithCtx.Error().Err(err).Str("queue_name", task.DefaultQueue).Send()
 			} else if errors.Is(err, asynq.ErrTaskNotFound) {
 				logWithCtx.Error().Err(err).Str("task_id", asynqTaskID).Send()
 			} else {

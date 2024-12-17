@@ -399,12 +399,17 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 	now := time.Now().In(location)
 	currentDay := now.Day()
 
+	isLastDay := IsLastDay(&now)
+	isPenultimateDay := IsPenultimateDay(&now)
+	isyaPrayer := prayerCalendar[currentDay-1][5]
+
+	if isLastDay {
+		isyaPrayer = lastDayPrayer[5]
+	}
+
 	for _, user := range users {
 		now = time.Now().In(location)
 		currentUnixTime := now.Unix()
-		isLastDay := IsLastDay(&now)
-		isPenultimateDay := IsPenultimateDay(&now)
-		isyaPrayer := prayerCalendar[currentDay-1][5]
 
 		var isNextPrayerLastDay bool
 		if (isPenultimateDay && currentUnixTime > isyaPrayer.UnixTime) ||
@@ -416,6 +421,10 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 		if isLastDay && currentUnixTime < isyaPrayer.UnixTime {
 			nextPrayer = GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentUnixTime)
 		} else {
+			if isLastDay && currentUnixTime > isyaPrayer.UnixTime {
+				currentDay = 1
+			}
+
 			nextPrayer = GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
 		}
 

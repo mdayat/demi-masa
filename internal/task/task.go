@@ -19,6 +19,10 @@ const (
 	TypeTaskRemoval        = "task:remove"
 )
 
+const (
+	DefaultQueue = "default"
+)
+
 type UserDowngradePayload struct {
 	UserID string
 }
