@@ -1,13 +1,16 @@
 package httpserver
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mdayat/demi-masa-be/internal/prayer"
 	"github.com/mdayat/demi-masa-be/internal/task"
 	"github.com/mdayat/demi-masa-be/repository"
@@ -16,9 +19,96 @@ import (
 )
 
 type prayerRespBody struct {
-	Name     string                       `json:"name"`
-	UnixTime int64                        `json:"unix_time"`
-	TimeZone repository.IndonesiaTimeZone `json:"time_zone"`
+	ID       string                  `json:"id"`
+	Name     string                  `json:"name"`
+	Status   repository.PrayerStatus `json:"status"`
+	UnixTime int64                   `json:"unix_time"`
+}
+
+func getUsedPrayers(ctx context.Context, timeZone repository.IndonesiaTimeZone) (prayer.Prayers, error) {
+	location, err := time.LoadLocation(string(timeZone))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load time zone location")
+	}
+
+	prayerCalendar, err := prayer.GetPrayerCalendar(ctx, timeZone)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get prayer calendar")
+	}
+
+	now := time.Now().In(location)
+	currentDay := now.Day()
+	currentUnixTime := now.Unix()
+	isLastDay := prayer.IsLastDay(&now)
+
+	todayPrayer := prayerCalendar[currentDay-1]
+	subuhPrayer := todayPrayer[0]
+	var usedPrayers prayer.Prayers
+
+	if currentDay == 1 && currentUnixTime < subuhPrayer.UnixTime ||
+		isLastDay && currentUnixTime > subuhPrayer.UnixTime {
+		usedPrayers, err = prayer.GetLastDayPrayer(ctx, timeZone)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get last day prayer")
+		}
+	} else if isLastDay && currentUnixTime < subuhPrayer.UnixTime {
+		usedPrayers, err = prayer.GetPenultimateDayPrayer(ctx, timeZone)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get penultimate day prayer")
+		}
+	} else if isLastDay == false && currentUnixTime < subuhPrayer.UnixTime {
+		yesterdayPrayer := prayerCalendar[currentDay-2]
+		usedPrayers = yesterdayPrayer
+	} else {
+		usedPrayers = todayPrayer
+	}
+
+	return usedPrayers, nil
+}
+
+type bulkInsertPrayerParams struct {
+	userID string
+	year   int16
+	month  int16
+	day    int16
+}
+
+func bulkInsertPrayer(
+	ctx context.Context,
+	usedPrayers prayer.Prayers,
+	arg *bulkInsertPrayerParams,
+) ([]repository.GetTodayPrayersRow, error) {
+	createPrayersParams := make([]repository.CreatePrayersParams, 0, len(usedPrayers)-1)
+	todayPrayers := make([]repository.GetTodayPrayersRow, 0, len(usedPrayers)-1)
+
+	for _, v := range usedPrayers {
+		if v.Name == prayer.SunriseTimeName {
+			continue
+		}
+
+		prayerUUID := uuid.New()
+		createPrayersParams = append(createPrayersParams, repository.CreatePrayersParams{
+			ID:     pgtype.UUID{Bytes: prayerUUID, Valid: true},
+			UserID: arg.userID,
+			Name:   v.Name,
+			Year:   arg.year,
+			Month:  arg.month,
+			Day:    arg.day,
+		})
+
+		todayPrayers = append(todayPrayers, repository.GetTodayPrayersRow{
+			ID:     pgtype.UUID{Bytes: prayerUUID, Valid: true},
+			Name:   v.Name,
+			Status: repository.PrayerStatusMISSED,
+		})
+	}
+
+	_, err := queries.CreatePrayers(ctx, createPrayersParams)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to bulk insert today prayers")
+	}
+
+	return todayPrayers, nil
 }
 
 func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
@@ -33,61 +123,74 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	logWithCtx.Info().Msg("successfully got user time zone by id")
 
-	location, err := time.LoadLocation(string(userTimeZone.IndonesiaTimeZone))
+	usedPrayers, err := getUsedPrayers(req.Context(), userTimeZone.IndonesiaTimeZone)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Msg("failed to get used prayers")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully loaded time zone location")
+	logWithCtx.Info().Msg("successfully got used prayers")
 
-	prayerCalendar, err := prayer.GetPrayerCalendar(req.Context(), userTimeZone.IndonesiaTimeZone)
+	subuhTime := time.Unix(usedPrayers[0].UnixTime, 0)
+	usedPrayersYear := subuhTime.Year()
+	usedPrayersMonth := subuhTime.Month()
+	usedPrayersDay := subuhTime.Day()
+
+	todayPrayers, err := queries.GetTodayPrayers(req.Context(), repository.GetTodayPrayersParams{
+		UserID: userID,
+		Year:   int16(usedPrayersYear),
+		Month:  int16(usedPrayersMonth),
+		Day:    int16(usedPrayersDay),
+	})
+
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get prayer calendar")
+		logWithCtx.Error().Err(err).Msg("failed to get today prayers")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully got prayer calendar")
+	logWithCtx.Info().Msg("successfully got today prayer")
 
-	now := time.Now().In(location)
-	currentDay := now.Day()
-	currentUnixTime := now.Unix()
-	isLastDay := prayer.IsLastDay(&now)
+	if len(todayPrayers) == 0 {
+		todayPrayers, err = bulkInsertPrayer(req.Context(), usedPrayers, &bulkInsertPrayerParams{
+			userID: userID,
+			year:   int16(usedPrayersYear),
+			month:  int16(usedPrayersMonth),
+			day:    int16(usedPrayersDay),
+		})
 
-	todayPrayer := prayerCalendar[currentDay-1]
-	subuhPrayer := todayPrayer[0]
-	var usedPrayer prayer.Prayers
-
-	if currentDay == 1 && currentUnixTime < subuhPrayer.UnixTime ||
-		isLastDay && currentUnixTime > subuhPrayer.UnixTime {
-		usedPrayer, err = prayer.GetLastDayPrayer(req.Context(), userTimeZone.IndonesiaTimeZone)
 		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to get last day prayer")
+			logWithCtx.Error().Err(err).Msg("failed to bulk insert today prayers")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		logWithCtx.Info().Msg("successfully got last day prayer")
-	} else if isLastDay && currentUnixTime < subuhPrayer.UnixTime {
-		usedPrayer, err = prayer.GetPenultimateDayPrayer(req.Context(), userTimeZone.IndonesiaTimeZone)
-		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to get penultimate day prayer")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		logWithCtx.Info().Msg("successfully got last day prayer")
-	} else if isLastDay == false && currentUnixTime < subuhPrayer.UnixTime {
-		yesterdayPrayer := prayerCalendar[currentDay-2]
-		usedPrayer = yesterdayPrayer
-	} else {
-		usedPrayer = todayPrayer
+		logWithCtx.Info().Msg("successfully bulk inserted today prayers")
 	}
 
-	respBody := make([]prayerRespBody, len(usedPrayer))
-	for i, v := range usedPrayer {
-		respBody[i] = prayerRespBody{
-			Name:     v.Name,
-			UnixTime: v.UnixTime,
-			TimeZone: userTimeZone.IndonesiaTimeZone,
+	respBody := make([]prayerRespBody, 0, len(todayPrayers))
+	for _, v := range usedPrayers {
+		if v.Name == prayer.SunriseTimeName {
+			continue
+		}
+
+		for _, p := range todayPrayers {
+			if p.Name != v.Name {
+				continue
+			}
+
+			prayerID, err := p.ID.Value()
+			if err != nil {
+				logWithCtx.Error().Err(err).Msg("failed to get prayer UUID from pgtype.UUID")
+				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			respBody = append(respBody, prayerRespBody{
+				ID:       fmt.Sprintf("%s", prayerID),
+				Name:     v.Name,
+				Status:   p.Status,
+				UnixTime: v.UnixTime,
+			})
+			break
 		}
 	}
 
@@ -100,13 +203,14 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Msg("successfully sent successful response body")
 }
 
-func createPrayerHandler(res http.ResponseWriter, req *http.Request) {
+func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	var body struct {
 		PrayerName     string                       `json:"prayer_name" validate:"required"`
 		PrayerUnixTime int64                        `json:"prayer_unix_time" validate:"required"`
 		TimeZone       repository.IndonesiaTimeZone `json:"time_zone" validate:"required"`
 		CheckedAt      int64                        `json:"checked_at" validate:"required"`
+		AccountType    repository.AccountType       `json:"account_type" validate:"required"`
 	}
 
 	err := decodeAndValidateJSONBody(req, &body)
@@ -125,48 +229,47 @@ func createPrayerHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	logWithCtx.Info().Msg("successfully got prayer calendar")
 
-	checkedTime := time.Unix(body.CheckedAt, 0)
-	isLastDay := prayer.IsLastDay(&checkedTime)
 	prayerTime := time.Unix(body.PrayerUnixTime, 0)
+	prayerDay := prayerTime.Day()
+	isLastDayPrayer := prayer.IsLastDay(&prayerTime)
+	isPenultimateDayPrayer := prayer.IsPenultimateDay(&prayerTime)
 
-	var isIsyaOfLastDay bool
-	if isLastDay && body.PrayerName == prayer.IsyaPrayerName && checkedTime.Day() == prayerTime.Day() {
-		isIsyaOfLastDay = true
-	}
+	checkedTime := time.Unix(body.CheckedAt, 0)
+	isCheckedAtLastDay := prayer.IsLastDay(&checkedTime)
 
-	var lastDayPrayer prayer.Prayers
-	if isLastDay && isIsyaOfLastDay == false {
-		lastDayPrayer, err = prayer.GetLastDayPrayer(req.Context(), body.TimeZone)
+	var usedPrayers prayer.Prayers
+	if isPenultimateDayPrayer && isCheckedAtLastDay && body.PrayerName != prayer.IsyaPrayerName {
+		usedPrayers, err = prayer.GetPenultimateDayPrayer(req.Context(), body.TimeZone)
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to get penultimate day prayer")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		logWithCtx.Info().Msg("successfully got penultimate day prayer")
+	} else if isPenultimateDayPrayer && isCheckedAtLastDay && body.PrayerName == prayer.IsyaPrayerName ||
+		isLastDayPrayer && body.PrayerName != prayer.IsyaPrayerName {
+		usedPrayers, err = prayer.GetLastDayPrayer(req.Context(), body.TimeZone)
 		if err != nil {
 			logWithCtx.Error().Err(err).Msg("failed to get last day prayer")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 		logWithCtx.Info().Msg("successfully got last day prayer")
-	}
-
-	checkedDay := checkedTime.Day()
-	if isLastDay && isIsyaOfLastDay {
-		checkedDay = 1
+	} else if isLastDayPrayer && body.PrayerName == prayer.IsyaPrayerName {
+		prayerDay = 1
 	}
 
 	var nextPrayer prayer.Prayer
-	if body.PrayerName == prayer.SubuhPrayerName && isLastDay {
-		lastDayPrayer, err = prayer.GetLastDayPrayer(req.Context(), body.TimeZone)
-		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to get last day prayer")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
+	if body.PrayerName == prayer.SubuhPrayerName {
+		var sunriseTime prayer.Prayer
+		if usedPrayers != nil {
+			sunriseTime = usedPrayers[1]
+		} else {
+			sunriseTime = prayerCalendar[prayerDay-1][1]
 		}
-		logWithCtx.Info().Msg("successfully got last day prayer")
-
-		sunriseTime := lastDayPrayer[1]
-		nextPrayer = sunriseTime
-	} else if body.PrayerName == prayer.SubuhPrayerName && isLastDay == false {
-		sunriseTime := prayerCalendar[checkedDay-1][1]
 		nextPrayer = sunriseTime
 	} else {
-		nextPrayer = prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, checkedDay, body.PrayerUnixTime)
+		nextPrayer = prayer.GetNextPrayer(prayerCalendar, usedPrayers, prayerDay, body.PrayerUnixTime)
 	}
 
 	nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0)
@@ -175,50 +278,38 @@ func createPrayerHandler(res http.ResponseWriter, req *http.Request) {
 	distanceQuarter := int(math.Round(prayersDistance.Seconds() * 0.25))
 	distanceToNextPrayer := nextPrayerTime.Sub(checkedTime)
 
-	prayerStatus := repository.PrayerStatusLATE
-	if distanceToNextPrayer.Seconds()-float64(distanceQuarter) > 0 {
+	var prayerStatus repository.PrayerStatus
+	if body.CheckedAt > nextPrayer.UnixTime {
+		prayerStatus = repository.PrayerStatusMISSED
+	} else if distanceToNextPrayer.Seconds()-float64(distanceQuarter) > 0 {
 		prayerStatus = repository.PrayerStatusONTIME
+	} else {
+		prayerStatus = repository.PrayerStatusLATE
 	}
 
-	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
-	userAccountType, err := queries.GetUserSubsByID(req.Context(), userID)
+	prayerID := chi.URLParam(req, "prayerID")
+	prayerIDBytes, err := uuid.Parse(prayerID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get user account type by id")
+		logWithCtx.Error().Err(err).Msg("failed to parse prayer uuid string to bytes")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully got user account type by id")
+	logWithCtx.Info().Msg("successfully parsed prayer uuid string to bytes")
 
-	err = queries.CreatePrayer(req.Context(), repository.CreatePrayerParams{
-		UserID: userID,
-		Name:   body.PrayerName,
+	err = queries.UpdatePrayer(req.Context(), repository.UpdatePrayerParams{
+		ID:     pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
 		Status: prayerStatus,
-		Year:   int16(prayerTime.Year()),
-		Month:  int16(prayerTime.Month()),
-		Day:    int16(prayerTime.Day()),
 	})
 
 	if err != nil {
-		ErrUniqueViolation := "23505"
-		var pgErr *pgconn.PgError
-
-		if errors.As(err, &pgErr) && pgErr.Code == ErrUniqueViolation {
-			errMsg := fmt.Sprintf(
-				"Kamu telah mencentang salat %s, kamu tidak dapat mencentang lebih dari sekali.",
-				body.PrayerName,
-			)
-
-			logWithCtx.Warn().Msg(pgErr.Message)
-			http.Error(res, errMsg, http.StatusBadRequest)
-		} else {
-			logWithCtx.Error().Err(err).Msg("failed to create prayer")
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+		logWithCtx.Error().Err(err).Msg("failed to update prayer status")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully created prayer")
+	logWithCtx.Info().Msg("successfully updated prayer status")
 
-	if userAccountType == repository.AccountTypePREMIUM {
+	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+	if body.AccountType == repository.AccountTypePREMIUM {
 		asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName)
 		err = asynqInspector.DeleteTask(task.DefaultQueue, asynqTaskID)
 		if err != nil {
@@ -231,7 +322,8 @@ func createPrayerHandler(res http.ResponseWriter, req *http.Request) {
 				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
+		} else {
+			logWithCtx.Info().Str("task_id", asynqTaskID).Msg("successfully deleted last prayer reminder")
 		}
-		logWithCtx.Info().Str("task_id", asynqTaskID).Msg("successfully deleted last prayer reminder")
 	}
 }
