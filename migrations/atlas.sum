@@ -1,4 +1,4 @@
-h1:pPD+gxu7vm+kbi9AwxACtWYhNQfMZMmyiHG37otsjeU=
+h1:WULPAIWkzxwOnVOa6E2xFRPofKzftlbc3dCmXkKg9BI=
 20241128070503_initial.sql h1:fw5RyuBc+tSz8AWcJvfODEBD7HNLw3fizTx+g2I982Q=
 20241130084219_change_subscription_duration.sql h1:VCpHp6g7UIbb+lslTDc13Prts5uPkOzuyxj+Rl4ILxs=
 20241201050414_update_transaction_table_constraint.sql h1:BjWK6R5gJQIot1+oylafXjuebDC50WYJDh5clceJeOU=
@@ -7,3 +7,4 @@ h1:pPD+gxu7vm+kbi9AwxACtWYhNQfMZMmyiHG37otsjeU=
 20241209142407_create_prayer_and_ibadah-list_tables.sql h1:yLrgTTuy/vuZBb1ks3NlTM9Wdbr5A6xdR1SU7mKUed4=
 20241209230059_update_table_name.sql h1:o8wTQuSmubO69QHolA2ExZ/CkRX9gCg1HspeBZAPsjE=
 20241216072356_update_prayer_table.sql h1:iiPBOm82pwoowoWAqDGYr+PCvEisTr+6duv8RCzA5ms=
+20241217090845_update_prayer_table.sql h1:mTa0eZpa7k84PbWH+mfCAzS4tfiIsAs4uekxR+AVxTc=

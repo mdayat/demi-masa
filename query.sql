@@ -106,6 +106,16 @@ DELETE FROM task WHERE checked = TRUE;
 -- name: DeleteTaskByID :exec
 DELETE FROM task WHERE id = $1;
 
--- name: CreatePrayer :exec
-INSERT INTO prayer (user_id, name, status, year, month, day)
+-- name: GetTodayPrayers :many
+SELECT
+  p.id,
+  p.name,
+  p.status
+FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.day = $4;
+
+-- name: CreatePrayers :copyfrom
+INSERT INTO prayer (id, user_id, name, year, month, day)
 VALUES ($1, $2, $3, $4, $5, $6);
+
+-- name: UpdatePrayer :exec
+UPDATE prayer SET status = $2 WHERE id = $1;

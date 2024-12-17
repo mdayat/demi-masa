@@ -89,7 +89,7 @@ CREATE TABLE prayer (
     ON UPDATE CASCADE
     ON DELETE CASCADE,
 
-  CONSTRAINT unique_prayer UNIQUE (name, year, month, day)
+  CONSTRAINT unique_prayer UNIQUE (user_id, name, year, month, day)
 );
 
 CREATE TABLE task (

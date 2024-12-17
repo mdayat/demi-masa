@@ -11,30 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createPrayer = `-- name: CreatePrayer :exec
-INSERT INTO prayer (user_id, name, status, year, month, day)
-VALUES ($1, $2, $3, $4, $5, $6)
-`
-
-type CreatePrayerParams struct {
-	UserID string       `json:"user_id"`
-	Name   string       `json:"name"`
-	Status PrayerStatus `json:"status"`
-	Year   int16        `json:"year"`
-	Month  int16        `json:"month"`
-	Day    int16        `json:"day"`
-}
-
-func (q *Queries) CreatePrayer(ctx context.Context, arg CreatePrayerParams) error {
-	_, err := q.db.Exec(ctx, createPrayer,
-		arg.UserID,
-		arg.Name,
-		arg.Status,
-		arg.Year,
-		arg.Month,
-		arg.Day,
-	)
-	return err
+type CreatePrayersParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID string      `json:"user_id"`
+	Name   string      `json:"name"`
+	Year   int16       `json:"year"`
+	Month  int16       `json:"month"`
+	Day    int16       `json:"day"`
 }
 
 const createTask = `-- name: CreateTask :one
@@ -233,6 +216,52 @@ func (q *Queries) GetTasksByUserID(ctx context.Context, userID string) ([]GetTas
 			&i.Description,
 			&i.Checked,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTodayPrayers = `-- name: GetTodayPrayers :many
+SELECT
+  p.id,
+  p.name,
+  p.status
+FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.day = $4
+`
+
+type GetTodayPrayersParams struct {
+	UserID string `json:"user_id"`
+	Year   int16  `json:"year"`
+	Month  int16  `json:"month"`
+	Day    int16  `json:"day"`
+}
+
+type GetTodayPrayersRow struct {
+	ID     pgtype.UUID  `json:"id"`
+	Name   string       `json:"name"`
+	Status PrayerStatus `json:"status"`
+}
+
+func (q *Queries) GetTodayPrayers(ctx context.Context, arg GetTodayPrayersParams) ([]GetTodayPrayersRow, error) {
+	rows, err := q.db.Query(ctx, getTodayPrayers,
+		arg.UserID,
+		arg.Year,
+		arg.Month,
+		arg.Day,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTodayPrayersRow
+	for rows.Next() {
+		var i GetTodayPrayersRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Status); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -491,6 +520,20 @@ DELETE FROM task WHERE checked = TRUE
 
 func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, removeCheckedTask)
+	return err
+}
+
+const updatePrayer = `-- name: UpdatePrayer :exec
+UPDATE prayer SET status = $2 WHERE id = $1
+`
+
+type UpdatePrayerParams struct {
+	ID     pgtype.UUID  `json:"id"`
+	Status PrayerStatus `json:"status"`
+}
+
+func (q *Queries) UpdatePrayer(ctx context.Context, arg UpdatePrayerParams) error {
+	_, err := q.db.Exec(ctx, updatePrayer, arg.ID, arg.Status)
 	return err
 }
 
