@@ -77,6 +77,7 @@ CREATE TABLE prayer (
   user_id VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
   status prayer_status DEFAULT 'MISSED' NOT NULL,
+  checked_at INT,
   year SMALLINT NOT NULL,
   month SMALLINT NOT NULL,
   day SMALLINT NOT NULL,
