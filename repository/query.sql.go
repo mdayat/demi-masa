@@ -226,6 +226,46 @@ func (q *Queries) GetTasksByUserID(ctx context.Context, userID string) ([]GetTas
 	return items, nil
 }
 
+const getThisMonthPrayers = `-- name: GetThisMonthPrayers :many
+SELECT
+  p.id,
+  p.name,
+  p.status
+FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3
+`
+
+type GetThisMonthPrayersParams struct {
+	UserID string `json:"user_id"`
+	Year   int16  `json:"year"`
+	Month  int16  `json:"month"`
+}
+
+type GetThisMonthPrayersRow struct {
+	ID     pgtype.UUID  `json:"id"`
+	Name   string       `json:"name"`
+	Status PrayerStatus `json:"status"`
+}
+
+func (q *Queries) GetThisMonthPrayers(ctx context.Context, arg GetThisMonthPrayersParams) ([]GetThisMonthPrayersRow, error) {
+	rows, err := q.db.Query(ctx, getThisMonthPrayers, arg.UserID, arg.Year, arg.Month)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetThisMonthPrayersRow
+	for rows.Next() {
+		var i GetThisMonthPrayersRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTodayPrayers = `-- name: GetTodayPrayers :many
 SELECT
   p.id,

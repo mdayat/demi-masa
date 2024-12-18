@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,6 +20,76 @@ import (
 )
 
 type prayerRespBody struct {
+	ID     string                  `json:"id"`
+	Name   string                  `json:"name"`
+	Status repository.PrayerStatus `json:"status"`
+}
+
+func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
+	logWithCtx := log.Ctx(req.Context()).With().Logger()
+	yearString := req.URL.Query().Get("year")
+	monthString := req.URL.Query().Get("month")
+
+	if yearString == "" || monthString == "" {
+		logWithCtx.Error().Err(errors.New("missing required query params")).Send()
+		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	year, err := strconv.Atoi(yearString)
+	if err != nil {
+		logWithCtx.Error().Err(errors.New("invalid year query params")).Send()
+		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	month, err := strconv.Atoi(monthString)
+	if err != nil {
+		logWithCtx.Error().Err(errors.New("invalid month query params")).Send()
+		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+	thisMonthPrayers, err := queries.GetThisMonthPrayers(req.Context(), repository.GetThisMonthPrayersParams{
+		UserID: userID,
+		Year:   int16(year),
+		Month:  int16(month),
+	})
+
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to get this month prayers")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully got this month prayers")
+
+	respBody := make([]prayerRespBody, len(thisMonthPrayers))
+	for i, v := range thisMonthPrayers {
+		prayerID, err := v.ID.Value()
+		if err != nil {
+			logWithCtx.Error().Err(err).Msg("failed to get prayer UUID from pgtype.UUID")
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		respBody[i] = prayerRespBody{
+			ID:     fmt.Sprintf("%s", prayerID),
+			Name:   v.Name,
+			Status: v.Status,
+		}
+	}
+
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to send successful response body")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully sent successful response body")
+}
+
+type todayPrayerRespBody struct {
 	ID        string                  `json:"id"`
 	Name      string                  `json:"name"`
 	Status    repository.PrayerStatus `json:"status"`
@@ -113,7 +184,7 @@ func bulkInsertPrayer(
 	return todayPrayers, nil
 }
 
-func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
+func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
 
@@ -168,7 +239,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 		logWithCtx.Info().Msg("successfully bulk inserted today prayers")
 	}
 
-	respBody := make([]prayerRespBody, 0, len(todayPrayers))
+	respBody := make([]todayPrayerRespBody, 0, len(todayPrayers))
 	for _, v := range usedPrayers {
 		if v.Name == prayer.SunriseTimeName {
 			continue
@@ -186,9 +257,9 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			respBody = append(respBody, prayerRespBody{
+			respBody = append(respBody, todayPrayerRespBody{
 				ID:        fmt.Sprintf("%s", prayerID),
-				Name:      v.Name,
+				Name:      p.Name,
 				Status:    p.Status,
 				UnixTime:  v.UnixTime,
 				CheckedAt: int64(p.CheckedAt.Int32),

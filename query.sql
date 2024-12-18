@@ -114,6 +114,13 @@ SELECT
   p.checked_at
 FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.day = $4;
 
+-- name: GetThisMonthPrayers :many
+SELECT
+  p.id,
+  p.name,
+  p.status
+FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3;
+
 -- name: CreatePrayers :copyfrom
 INSERT INTO prayer (id, user_id, name, year, month, day)
 VALUES ($1, $2, $3, $4, $5, $6);

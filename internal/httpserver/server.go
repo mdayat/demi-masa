@@ -73,6 +73,7 @@ func New() *chi.Mux {
 		r.Delete("/tasks/{taskID}", deleteTaskHandler)
 
 		r.Get("/prayers", getPrayersHandler)
+		r.Get("/prayers/today", getTodayPrayersHandler)
 		r.Put("/prayers/{prayerID}", updatePrayerHandler)
 
 		r.Get("/subscription-plans", getSubsPlansHandler)
