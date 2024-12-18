@@ -19,10 +19,11 @@ import (
 )
 
 type prayerRespBody struct {
-	ID       string                  `json:"id"`
-	Name     string                  `json:"name"`
-	Status   repository.PrayerStatus `json:"status"`
-	UnixTime int64                   `json:"unix_time"`
+	ID        string                  `json:"id"`
+	Name      string                  `json:"name"`
+	Status    repository.PrayerStatus `json:"status"`
+	UnixTime  int64                   `json:"unix_time"`
+	CheckedAt int64                   `json:"checked_at,omitempty"`
 }
 
 func getUsedPrayers(ctx context.Context, timeZone repository.IndonesiaTimeZone) (prayer.Prayers, error) {
@@ -97,9 +98,10 @@ func bulkInsertPrayer(
 		})
 
 		todayPrayers = append(todayPrayers, repository.GetTodayPrayersRow{
-			ID:     pgtype.UUID{Bytes: prayerUUID, Valid: true},
-			Name:   v.Name,
-			Status: repository.PrayerStatusMISSED,
+			ID:        pgtype.UUID{Bytes: prayerUUID, Valid: true},
+			Name:      v.Name,
+			Status:    repository.PrayerStatusMISSED,
+			CheckedAt: pgtype.Int4{Valid: false},
 		})
 	}
 
@@ -185,10 +187,11 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 			}
 
 			respBody = append(respBody, prayerRespBody{
-				ID:       fmt.Sprintf("%s", prayerID),
-				Name:     v.Name,
-				Status:   p.Status,
-				UnixTime: v.UnixTime,
+				ID:        fmt.Sprintf("%s", prayerID),
+				Name:      v.Name,
+				Status:    p.Status,
+				UnixTime:  v.UnixTime,
+				CheckedAt: int64(p.CheckedAt.Int32),
 			})
 			break
 		}
@@ -297,8 +300,9 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Msg("successfully parsed prayer uuid string to bytes")
 
 	err = queries.UpdatePrayer(req.Context(), repository.UpdatePrayerParams{
-		ID:     pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
-		Status: prayerStatus,
+		ID:        pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
+		Status:    prayerStatus,
+		CheckedAt: pgtype.Int4{Int32: int32(body.CheckedAt), Valid: true},
 	})
 
 	if err != nil {
@@ -326,4 +330,18 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.Info().Str("task_id", asynqTaskID).Msg("successfully deleted last prayer reminder")
 		}
 	}
+
+	respBody := struct {
+		Status repository.PrayerStatus `json:"status"`
+	}{
+		Status: prayerStatus,
+	}
+
+	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to send successful response body")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully sent successful response body")
 }
