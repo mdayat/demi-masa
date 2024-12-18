@@ -20,9 +20,10 @@ import (
 )
 
 type prayerRespBody struct {
-	ID     string                  `json:"id"`
-	Name   string                  `json:"name"`
-	Status repository.PrayerStatus `json:"status"`
+	ID       string                  `json:"id"`
+	Name     string                  `json:"name"`
+	Status   repository.PrayerStatus `json:"status,omitempty"`
+	UnixTime int64                   `json:"unix_time,omitempty"`
 }
 
 func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
@@ -74,9 +75,8 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 		}
 
 		respBody[i] = prayerRespBody{
-			ID:     fmt.Sprintf("%s", prayerID),
-			Name:   v.Name,
-			Status: v.Status,
+			ID:   fmt.Sprintf("%s", prayerID),
+			Name: v.Name,
 		}
 	}
 
@@ -87,14 +87,6 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logWithCtx.Info().Msg("successfully sent successful response body")
-}
-
-type todayPrayerRespBody struct {
-	ID        string                  `json:"id"`
-	Name      string                  `json:"name"`
-	Status    repository.PrayerStatus `json:"status"`
-	UnixTime  int64                   `json:"unix_time"`
-	CheckedAt int64                   `json:"checked_at,omitempty"`
 }
 
 func getUsedPrayers(ctx context.Context, timeZone repository.IndonesiaTimeZone) (prayer.Prayers, error) {
@@ -169,10 +161,8 @@ func bulkInsertPrayer(
 		})
 
 		todayPrayers = append(todayPrayers, repository.GetTodayPrayersRow{
-			ID:        pgtype.UUID{Bytes: prayerUUID, Valid: true},
-			Name:      v.Name,
-			Status:    repository.PrayerStatusMISSED,
-			CheckedAt: pgtype.Int4{Valid: false},
+			ID:   pgtype.UUID{Bytes: prayerUUID, Valid: true},
+			Name: v.Name,
 		})
 	}
 
@@ -239,7 +229,7 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 		logWithCtx.Info().Msg("successfully bulk inserted today prayers")
 	}
 
-	respBody := make([]todayPrayerRespBody, 0, len(todayPrayers))
+	respBody := make([]prayerRespBody, 0, len(todayPrayers))
 	for _, v := range usedPrayers {
 		if v.Name == prayer.SunriseTimeName {
 			continue
@@ -257,12 +247,11 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			respBody = append(respBody, todayPrayerRespBody{
-				ID:        fmt.Sprintf("%s", prayerID),
-				Name:      p.Name,
-				Status:    p.Status,
-				UnixTime:  v.UnixTime,
-				CheckedAt: int64(p.CheckedAt.Int32),
+			respBody = append(respBody, prayerRespBody{
+				ID:       fmt.Sprintf("%s", prayerID),
+				Name:     p.Name,
+				Status:   p.Status.PrayerStatus,
+				UnixTime: v.UnixTime,
 			})
 			break
 		}
@@ -371,9 +360,8 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Msg("successfully parsed prayer uuid string to bytes")
 
 	err = queries.UpdatePrayer(req.Context(), repository.UpdatePrayerParams{
-		ID:        pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
-		Status:    prayerStatus,
-		CheckedAt: pgtype.Int4{Int32: int32(body.CheckedAt), Valid: true},
+		ID:     pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
+		Status: repository.NullPrayerStatus{PrayerStatus: prayerStatus, Valid: true},
 	})
 
 	if err != nil {

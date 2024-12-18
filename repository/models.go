@@ -193,14 +193,13 @@ type Coupon struct {
 }
 
 type Prayer struct {
-	ID        pgtype.UUID  `json:"id"`
-	UserID    string       `json:"user_id"`
-	Name      string       `json:"name"`
-	Status    PrayerStatus `json:"status"`
-	CheckedAt pgtype.Int4  `json:"checked_at"`
-	Year      int16        `json:"year"`
-	Month     int16        `json:"month"`
-	Day       int16        `json:"day"`
+	ID     pgtype.UUID      `json:"id"`
+	UserID string           `json:"user_id"`
+	Name   string           `json:"name"`
+	Status NullPrayerStatus `json:"status"`
+	Year   int16            `json:"year"`
+	Month  int16            `json:"month"`
+	Day    int16            `json:"day"`
 }
 
 type SubscriptionPlan struct {

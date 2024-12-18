@@ -231,7 +231,7 @@ SELECT
   p.id,
   p.name,
   p.status
-FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3
+FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.status IS NOT NULL
 `
 
 type GetThisMonthPrayersParams struct {
@@ -241,9 +241,9 @@ type GetThisMonthPrayersParams struct {
 }
 
 type GetThisMonthPrayersRow struct {
-	ID     pgtype.UUID  `json:"id"`
-	Name   string       `json:"name"`
-	Status PrayerStatus `json:"status"`
+	ID     pgtype.UUID      `json:"id"`
+	Name   string           `json:"name"`
+	Status NullPrayerStatus `json:"status"`
 }
 
 func (q *Queries) GetThisMonthPrayers(ctx context.Context, arg GetThisMonthPrayersParams) ([]GetThisMonthPrayersRow, error) {
@@ -270,8 +270,7 @@ const getTodayPrayers = `-- name: GetTodayPrayers :many
 SELECT
   p.id,
   p.name,
-  p.status,
-  p.checked_at
+  p.status
 FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.day = $4
 `
 
@@ -283,10 +282,9 @@ type GetTodayPrayersParams struct {
 }
 
 type GetTodayPrayersRow struct {
-	ID        pgtype.UUID  `json:"id"`
-	Name      string       `json:"name"`
-	Status    PrayerStatus `json:"status"`
-	CheckedAt pgtype.Int4  `json:"checked_at"`
+	ID     pgtype.UUID      `json:"id"`
+	Name   string           `json:"name"`
+	Status NullPrayerStatus `json:"status"`
 }
 
 func (q *Queries) GetTodayPrayers(ctx context.Context, arg GetTodayPrayersParams) ([]GetTodayPrayersRow, error) {
@@ -303,12 +301,7 @@ func (q *Queries) GetTodayPrayers(ctx context.Context, arg GetTodayPrayersParams
 	var items []GetTodayPrayersRow
 	for rows.Next() {
 		var i GetTodayPrayersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Status,
-			&i.CheckedAt,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name, &i.Status); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -571,17 +564,16 @@ func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
 }
 
 const updatePrayer = `-- name: UpdatePrayer :exec
-UPDATE prayer SET status = $2, checked_at = $3 WHERE id = $1
+UPDATE prayer SET status = $2 WHERE id = $1
 `
 
 type UpdatePrayerParams struct {
-	ID        pgtype.UUID  `json:"id"`
-	Status    PrayerStatus `json:"status"`
-	CheckedAt pgtype.Int4  `json:"checked_at"`
+	ID     pgtype.UUID      `json:"id"`
+	Status NullPrayerStatus `json:"status"`
 }
 
 func (q *Queries) UpdatePrayer(ctx context.Context, arg UpdatePrayerParams) error {
-	_, err := q.db.Exec(ctx, updatePrayer, arg.ID, arg.Status, arg.CheckedAt)
+	_, err := q.db.Exec(ctx, updatePrayer, arg.ID, arg.Status)
 	return err
 }
 

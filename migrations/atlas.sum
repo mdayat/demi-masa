@@ -1,4 +1,4 @@
-h1:EwaKsDJ1HDbMBDJ9TJDc7FXlehY0+CkPw5dvDLJaxe4=
+h1:0NQ9cUKbtVJ5I3ZrMhPQgCuFX3UVjAn/s5je118ycI4=
 20241128070503_initial.sql h1:fw5RyuBc+tSz8AWcJvfODEBD7HNLw3fizTx+g2I982Q=
 20241130084219_change_subscription_duration.sql h1:VCpHp6g7UIbb+lslTDc13Prts5uPkOzuyxj+Rl4ILxs=
 20241201050414_update_transaction_table_constraint.sql h1:BjWK6R5gJQIot1+oylafXjuebDC50WYJDh5clceJeOU=
@@ -9,3 +9,5 @@ h1:EwaKsDJ1HDbMBDJ9TJDc7FXlehY0+CkPw5dvDLJaxe4=
 20241216072356_update_prayer_table.sql h1:iiPBOm82pwoowoWAqDGYr+PCvEisTr+6duv8RCzA5ms=
 20241217090845_update_prayer_table.sql h1:mTa0eZpa7k84PbWH+mfCAzS4tfiIsAs4uekxR+AVxTc=
 20241218001633_add_checked_at_column.sql h1:ERP4UPYk23fDRQ3Jm9AG1dfmRNiAfvzKc8p1hN1odmQ=
+20241218150939_nullable_prayer_status.sql h1:fI0Ufx/2R8OKlY4d64r65uhmniLuOr8ezASJMsjuYSs=
+20241218151538_remove_checked_at_column.sql h1:J2jhVxzC/xAcwGS5YDe2J024YtQYJTxZf47rT0dVvU0=

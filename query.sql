@@ -110,8 +110,7 @@ DELETE FROM task WHERE id = $1;
 SELECT
   p.id,
   p.name,
-  p.status,
-  p.checked_at
+  p.status
 FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.day = $4;
 
 -- name: GetThisMonthPrayers :many
@@ -119,11 +118,11 @@ SELECT
   p.id,
   p.name,
   p.status
-FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3;
+FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.status IS NOT NULL;
 
 -- name: CreatePrayers :copyfrom
 INSERT INTO prayer (id, user_id, name, year, month, day)
 VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: UpdatePrayer :exec
-UPDATE prayer SET status = $2, checked_at = $3 WHERE id = $1;
+UPDATE prayer SET status = $2 WHERE id = $1;
