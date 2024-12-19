@@ -60,7 +60,7 @@ func createTaskHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
 	var body struct {
 		Name        string `json:"name" validate:"required"`
-		Description string `json:"description" validate:"required"`
+		Description string `json:"description"`
 	}
 
 	err := decodeAndValidateJSONBody(req, &body)

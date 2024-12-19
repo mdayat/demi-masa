@@ -75,8 +75,9 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 		}
 
 		respBody[i] = prayerRespBody{
-			ID:   fmt.Sprintf("%s", prayerID),
-			Name: v.Name,
+			ID:     fmt.Sprintf("%s", prayerID),
+			Name:   v.Name,
+			Status: v.Status.PrayerStatus,
 		}
 	}
 

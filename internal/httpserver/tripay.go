@@ -23,7 +23,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const QRIS_PAYMENT_METHOD = "QRIS_SHOPEEPAY"
+const QRIS_PAYMENT_METHOD = "QRIS"
 
 type tripayAPIResp struct {
 	Success bool            `json:"success"`
