@@ -136,24 +136,6 @@ func (q *Queries) DeleteUserByID(ctx context.Context, id string) (string, error)
 	return id, err
 }
 
-const getSubsPlanByID = `-- name: GetSubsPlanByID :one
-SELECT id, name, price, duration_in_months, created_at, deleted_at FROM subscription_plan WHERE id = $1
-`
-
-func (q *Queries) GetSubsPlanByID(ctx context.Context, id pgtype.UUID) (SubscriptionPlan, error) {
-	row := q.db.QueryRow(ctx, getSubsPlanByID, id)
-	var i SubscriptionPlan
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Price,
-		&i.DurationInMonths,
-		&i.CreatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
-}
-
 const getSubsPlans = `-- name: GetSubsPlans :many
 SELECT id, name, price, duration_in_months, created_at, deleted_at FROM subscription_plan WHERE deleted_at IS NULL
 `

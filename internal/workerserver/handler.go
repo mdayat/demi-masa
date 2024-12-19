@@ -91,10 +91,10 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	}
 
 	nextPrayer := prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, prayerDay, payload.PrayerUnixTime)
-	nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0)
-
 	now := time.Now().In(location)
-	duration := nextPrayerTime.Sub(now)
+	nowUnixTime := now.Unix()
+
+	duration := time.Duration(nextPrayer.UnixTime-nowUnixTime) * time.Second
 	err = prayer.SchedulePrayerReminder(
 		&duration,
 		task.PrayerReminderPayload{
@@ -112,20 +112,25 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx.Info().Msg("successfully scheduled prayer reminder")
 
 	if user.AccountType == repository.AccountTypePREMIUM {
-		var prayerTimeDistance time.Duration
+		var prayerTimeDistance int64
+		var nowToNextPrayerDistance int64
+
 		if payload.PrayerName == prayer.SubuhPrayerName && isLastDay {
-			sunriseTime := time.Unix(lastDayPrayer[1].UnixTime, 0)
-			prayerTimeDistance = sunriseTime.Sub(prayerTime)
+			sunriseUnixTime := lastDayPrayer[1].UnixTime
+			prayerTimeDistance = sunriseUnixTime - payload.PrayerUnixTime
+			nowToNextPrayerDistance = sunriseUnixTime - nowUnixTime
 		} else if payload.PrayerName == prayer.SubuhPrayerName && isLastDay == false {
 			todayPrayer := prayerCalendar[prayerDay-1]
-			sunriseTime := time.Unix(todayPrayer[1].UnixTime, 0)
-			prayerTimeDistance = sunriseTime.Sub(prayerTime)
+			sunriseUnixTime := todayPrayer[1].UnixTime
+			prayerTimeDistance = sunriseUnixTime - payload.PrayerUnixTime
+			nowToNextPrayerDistance = sunriseUnixTime - nowUnixTime
 		} else {
-			prayerTimeDistance = nextPrayerTime.Sub(prayerTime)
+			prayerTimeDistance = nextPrayer.UnixTime - payload.PrayerUnixTime
+			nowToNextPrayerDistance = nextPrayer.UnixTime - nowUnixTime
 		}
 
-		quarterTime := int(math.Round(prayerTimeDistance.Seconds() * 0.25))
-		lastReminderDuration := duration - time.Duration(quarterTime)
+		quarterTime := math.Round(float64(prayerTimeDistance) * 0.25)
+		lastReminderDuration := time.Duration(nowToNextPrayerDistance-int64(quarterTime)) * time.Second
 
 		err = prayer.ScheduleLastPrayerReminder(
 			&lastReminderDuration,

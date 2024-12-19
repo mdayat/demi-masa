@@ -336,16 +336,14 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 		nextPrayer = prayer.GetNextPrayer(prayerCalendar, usedPrayers, prayerDay, body.PrayerUnixTime)
 	}
 
-	nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0)
-	prayersDistance := nextPrayerTime.Sub(prayerTime)
-
-	distanceQuarter := int(math.Round(prayersDistance.Seconds() * 0.25))
-	distanceToNextPrayer := nextPrayerTime.Sub(checkedTime)
+	prayersDistance := nextPrayer.UnixTime - body.PrayerUnixTime
+	distanceQuarter := int(math.Round(float64(prayersDistance) * 0.25))
+	distanceToNextPrayer := nextPrayer.UnixTime - body.CheckedAt
 
 	var prayerStatus repository.PrayerStatus
 	if body.CheckedAt > nextPrayer.UnixTime {
 		prayerStatus = repository.PrayerStatusMISSED
-	} else if distanceToNextPrayer.Seconds()-float64(distanceQuarter) > 0 {
+	} else if distanceToNextPrayer-int64(distanceQuarter) > 0 {
 		prayerStatus = repository.PrayerStatusONTIME
 	} else {
 		prayerStatus = repository.PrayerStatusLATE

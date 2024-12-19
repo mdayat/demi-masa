@@ -46,9 +46,6 @@ DELETE FROM "user" WHERE id = $1 RETURNING id;
 -- name: GetSubsPlans :many
 SELECT * FROM subscription_plan WHERE deleted_at IS NULL;
 
--- name: GetSubsPlanByID :one
-SELECT * FROM subscription_plan WHERE id = $1;
-
 -- name: DecrementCouponQuota :one
 UPDATE coupon SET quota = quota - 1
 WHERE code = $1 AND quota > 0 AND deleted_at IS NULL RETURNING quota;

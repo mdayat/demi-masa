@@ -428,7 +428,7 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 			nextPrayer = GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
 		}
 
-		duration := time.Unix(nextPrayer.UnixTime, 0).Sub(now)
+		duration := time.Duration(nextPrayer.UnixTime-currentUnixTime) * time.Second
 		err = SchedulePrayerReminder(
 			&duration,
 			task.PrayerReminderPayload{
