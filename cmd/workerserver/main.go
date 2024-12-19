@@ -102,6 +102,11 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to schedule task removal task")
 	}
 
+	err = prayer.ScheduleFirstPrayerUpdateTask()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to schedule first prayer update task")
+	}
+
 	server, mux := workerserver.New()
 	if err := server.Run(mux); err != nil {
 		log.Fatal().Stack().Err(err).Msg("failed to run asynq server")

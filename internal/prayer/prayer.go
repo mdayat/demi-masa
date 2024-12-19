@@ -446,3 +446,50 @@ func InitPrayerReminder(timeZone repository.IndonesiaTimeZone) error {
 
 	return nil
 }
+
+func ScheduleFirstPrayerUpdateTask() error {
+	location, err := time.LoadLocation(string(repository.IndonesiaTimeZoneAsiaJakarta))
+	if err != nil {
+		return errors.Wrap(err, "failed to load time zone location")
+	}
+
+	now := time.Now().In(location)
+	sixAMToday := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, now.Location())
+
+	var targetTime time.Time
+	if now.Before(sixAMToday) {
+		targetTime = sixAMToday
+	} else {
+		nextDay := now.Add(24 * time.Hour)
+		targetTime = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 6, 0, 0, 0, nextDay.Location())
+	}
+
+	asynqTask, err := task.NewPrayerUpdateTask()
+	if err != nil {
+		return errors.Wrap(err, "failed to create prayer update task")
+	}
+
+	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(targetTime.Sub(now)))
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue prayer update task")
+	}
+
+	return nil
+}
+
+func SchedulePrayerUpdateTask(now *time.Time) error {
+	nextDay := now.Add(24 * time.Hour)
+	nextDayAtSix := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 6, 0, 0, 0, nextDay.Location())
+
+	asynqTask, err := task.NewPrayerUpdateTask()
+	if err != nil {
+		return errors.Wrap(err, "failed to create prayer update task")
+	}
+
+	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(nextDayAtSix.Sub(*now)))
+	if err != nil {
+		return errors.Wrap(err, "failed to enqueue prayer update task")
+	}
+
+	return nil
+}

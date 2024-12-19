@@ -16,6 +16,7 @@ const (
 	TypePrayerReminder     = "prayer:remind"
 	TypeLastPrayerReminder = "prayer:last_remind"
 	TypePrayerRenewal      = "prayer:renew"
+	TypePrayerUpdate       = "prayer:update"
 	TypeTaskRemoval        = "task:remove"
 )
 
@@ -121,4 +122,8 @@ func ScheduleTaskRemovalTask() error {
 
 func NewTaskRemovalTask() (*asynq.Task, error) {
 	return asynq.NewTask(TypeTaskRemoval, nil, asynq.MaxRetry(3)), nil
+}
+
+func NewPrayerUpdateTask() (*asynq.Task, error) {
+	return asynq.NewTask(TypePrayerUpdate, nil, asynq.MaxRetry(3)), nil
 }

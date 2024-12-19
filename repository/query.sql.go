@@ -563,17 +563,32 @@ func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
 	return err
 }
 
-const updatePrayer = `-- name: UpdatePrayer :exec
+const updatePrayerStatus = `-- name: UpdatePrayerStatus :exec
 UPDATE prayer SET status = $2 WHERE id = $1
 `
 
-type UpdatePrayerParams struct {
+type UpdatePrayerStatusParams struct {
 	ID     pgtype.UUID      `json:"id"`
 	Status NullPrayerStatus `json:"status"`
 }
 
-func (q *Queries) UpdatePrayer(ctx context.Context, arg UpdatePrayerParams) error {
-	_, err := q.db.Exec(ctx, updatePrayer, arg.ID, arg.Status)
+func (q *Queries) UpdatePrayerStatus(ctx context.Context, arg UpdatePrayerStatusParams) error {
+	_, err := q.db.Exec(ctx, updatePrayerStatus, arg.ID, arg.Status)
+	return err
+}
+
+const updatePrayersToMissed = `-- name: UpdatePrayersToMissed :exec
+UPDATE prayer SET status = 'MISSED' WHERE status IS NULL AND (day < $1 OR month < $2 OR year < $3)
+`
+
+type UpdatePrayersToMissedParams struct {
+	Day   int16 `json:"day"`
+	Month int16 `json:"month"`
+	Year  int16 `json:"year"`
+}
+
+func (q *Queries) UpdatePrayersToMissed(ctx context.Context, arg UpdatePrayersToMissedParams) error {
+	_, err := q.db.Exec(ctx, updatePrayersToMissed, arg.Day, arg.Month, arg.Year)
 	return err
 }
 

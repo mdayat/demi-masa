@@ -359,7 +359,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	logWithCtx.Info().Msg("successfully parsed prayer uuid string to bytes")
 
-	err = queries.UpdatePrayer(req.Context(), repository.UpdatePrayerParams{
+	err = queries.UpdatePrayerStatus(req.Context(), repository.UpdatePrayerStatusParams{
 		ID:     pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
 		Status: repository.NullPrayerStatus{PrayerStatus: prayerStatus, Valid: true},
 	})

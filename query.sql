@@ -124,5 +124,8 @@ FROM prayer p WHERE p.user_id = $1 AND p.year = $2 AND p.month = $3 AND p.status
 INSERT INTO prayer (id, user_id, name, year, month, day)
 VALUES ($1, $2, $3, $4, $5, $6);
 
--- name: UpdatePrayer :exec
+-- name: UpdatePrayerStatus :exec
 UPDATE prayer SET status = $2 WHERE id = $1;
+
+-- name: UpdatePrayersToMissed :exec
+UPDATE prayer SET status = 'MISSED' WHERE status IS NULL AND (day < $1 OR month < $2 OR year < $3);

@@ -295,7 +295,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	return nil
 }
 
-func handleTaskRemoval(ctx context.Context, asynqTask *asynq.Task) error {
+func handleTaskRemoval(ctx context.Context, _ *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	err := queries.RemoveCheckedTask(ctx)
 	if err != nil {
@@ -310,6 +310,36 @@ func handleTaskRemoval(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 	logWithCtx.Info().Msg("successfully scheduled task removal task")
+
+	return nil
+}
+
+func handlePrayerUpdate(ctx context.Context, _ *asynq.Task) error {
+	logWithCtx := log.Ctx(ctx).With().Logger()
+	location, err := time.LoadLocation(string(repository.IndonesiaTimeZoneAsiaJakarta))
+	if err != nil {
+		return errors.Wrap(err, "failed to load time zone location")
+	}
+
+	now := time.Now().In(location)
+	err = queries.UpdatePrayersToMissed(ctx, repository.UpdatePrayersToMissedParams{
+		Day:   int16(now.Day()),
+		Month: int16(now.Month()),
+		Year:  int16(now.Year()),
+	})
+
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to update prayers status to missed")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully updated prayers status to missed")
+
+	err = prayer.SchedulePrayerUpdateTask(&now)
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to schedule prayer update task")
+		return err
+	}
+	logWithCtx.Info().Msg("successfully scheduled prayer update task")
 
 	return nil
 }
