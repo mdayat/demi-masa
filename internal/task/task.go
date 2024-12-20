@@ -104,8 +104,13 @@ func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
 }
 
 func ScheduleTaskRemovalTask() error {
-	now := time.Now()
-	tomorrow := now.AddDate(0, 0, 1)
+	location, err := time.LoadLocation(string(repository.IndonesiaTimeZoneAsiaJakarta))
+	if err != nil {
+		return errors.Wrap(err, "failed to load time zone location")
+	}
+
+	now := time.Now().In(location)
+	tomorrow := now.AddDate(0, 0, 1).In(location)
 	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())
 	asynqTask, err := NewTaskRemovalTask()
 	if err != nil {

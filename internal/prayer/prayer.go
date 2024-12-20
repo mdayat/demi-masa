@@ -61,7 +61,7 @@ func parsePrayerTime(location *time.Location, timestamp int64, timeValue string)
 	}
 
 	now := time.Unix(timestamp, 0).In(location)
-	prayerTime = time.Date(now.Year(), now.Month(), now.Day(), prayerTime.Hour(), prayerTime.Minute(), 0, 0, location)
+	prayerTime = time.Date(now.Year(), now.Month(), now.Day(), prayerTime.Hour(), prayerTime.Minute(), 0, 0, now.Location())
 	return &prayerTime, nil
 }
 
@@ -204,7 +204,6 @@ func GetAladhanPrayerCalendar(url string) ([]aladhanPrayerCalendar, error) {
 
 func SchedulePrayerRenewal(
 	numOfDays int,
-	location *time.Location,
 	now *time.Time,
 	payload task.PrayerRenewalTask,
 ) error {
@@ -213,7 +212,7 @@ func SchedulePrayerRenewal(
 		return errors.Wrap(err, "failed to create prayer renewal task")
 	}
 
-	renewalDate := time.Date(now.Year(), now.Month(), numOfDays, 0, 0, 0, 0, location)
+	renewalDate := time.Date(now.Year(), now.Month(), numOfDays, 0, 0, 0, 0, now.Location())
 	renewalDuration := renewalDate.Unix() - now.Unix()
 	_, err = services.GetAsynqClient().Enqueue(asynqTask, asynq.ProcessIn(time.Duration(renewalDuration)*time.Second))
 	if err != nil {
@@ -281,7 +280,6 @@ func InitPrayerCalendar(timeZone repository.IndonesiaTimeZone) error {
 	numOfDays := len(parsedPrayerCalendar)
 	err = SchedulePrayerRenewal(
 		numOfDays,
-		location,
 		&now,
 		task.PrayerRenewalTask{TimeZone: timeZone},
 	)
@@ -460,7 +458,7 @@ func ScheduleFirstPrayerUpdateTask() error {
 	if now.Before(sixAMToday) {
 		targetTime = sixAMToday
 	} else {
-		nextDay := now.Add(24 * time.Hour)
+		nextDay := now.Add(24 * time.Hour).In(now.Location())
 		targetTime = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 6, 0, 0, 0, nextDay.Location())
 	}
 
@@ -478,7 +476,7 @@ func ScheduleFirstPrayerUpdateTask() error {
 }
 
 func SchedulePrayerUpdateTask(now *time.Time) error {
-	nextDay := now.Add(24 * time.Hour)
+	nextDay := now.Add(24 * time.Hour).In(now.Location())
 	nextDayAtSix := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 6, 0, 0, 0, nextDay.Location())
 
 	asynqTask, err := task.NewPrayerUpdateTask()

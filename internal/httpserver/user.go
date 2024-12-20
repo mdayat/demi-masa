@@ -83,7 +83,7 @@ func addUserToTaskQueue(ctx context.Context) (*prayer.Prayer, error) {
 		nextPrayer = prayer.GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
 	}
 
-	duration := time.Unix(nextPrayer.UnixTime, 0).Sub(now)
+	duration := time.Duration(nextPrayer.UnixTime-currentUnixTime) * time.Second
 	err = prayer.SchedulePrayerReminder(
 		&duration,
 		task.PrayerReminderPayload{

@@ -67,7 +67,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		return errors.Wrap(err, "failed to get prayer calendar")
 	}
 
-	prayerTime := time.Unix(payload.PrayerUnixTime, 0)
+	prayerTime := time.Unix(payload.PrayerUnixTime, 0).In(location)
 	isLastDay := prayer.IsLastDay(&prayerTime)
 	isPenultimateDay := prayer.IsPenultimateDay(&prayerTime)
 
@@ -286,7 +286,6 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	numOfDays := len(parsedPrayerCalendar)
 	err = prayer.SchedulePrayerRenewal(
 		numOfDays,
-		location,
 		&now,
 		task.PrayerRenewalTask{TimeZone: payload.TimeZone},
 	)

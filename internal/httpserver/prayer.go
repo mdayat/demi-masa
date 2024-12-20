@@ -90,12 +90,11 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Msg("successfully sent successful response body")
 }
 
-func getUsedPrayers(ctx context.Context, timeZone repository.IndonesiaTimeZone) (prayer.Prayers, error) {
-	location, err := time.LoadLocation(string(timeZone))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load time zone location")
-	}
-
+func getUsedPrayers(
+	ctx context.Context,
+	location *time.Location,
+) (prayer.Prayers, error) {
+	timeZone := repository.IndonesiaTimeZone(location.String())
 	prayerCalendar, err := prayer.GetPrayerCalendar(ctx, timeZone)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get prayer calendar")
@@ -177,17 +176,16 @@ func bulkInsertPrayer(
 
 func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(req.Context()).With().Logger()
-	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
-
-	userTimeZone, err := queries.GetUserTimeZoneByID(req.Context(), userID)
+	userTimeZone := req.URL.Query().Get("time_zone")
+	location, err := time.LoadLocation(userTimeZone)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get user time zone by id")
+		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully got user time zone by id")
+	logWithCtx.Info().Msg("successfully loaded time zone location")
 
-	usedPrayers, err := getUsedPrayers(req.Context(), userTimeZone.IndonesiaTimeZone)
+	usedPrayers, err := getUsedPrayers(req.Context(), location)
 	if err != nil {
 		logWithCtx.Error().Err(err).Msg("failed to get used prayers")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -195,11 +193,12 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	logWithCtx.Info().Msg("successfully got used prayers")
 
-	subuhTime := time.Unix(usedPrayers[0].UnixTime, 0)
+	subuhTime := time.Unix(usedPrayers[0].UnixTime, 0).In(location)
 	usedPrayersYear := subuhTime.Year()
 	usedPrayersMonth := subuhTime.Month()
 	usedPrayersDay := subuhTime.Day()
 
+	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
 	todayPrayers, err := queries.GetTodayPrayers(req.Context(), repository.GetTodayPrayersParams{
 		UserID: userID,
 		Year:   int16(usedPrayersYear),
@@ -293,12 +292,20 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	logWithCtx.Info().Msg("successfully got prayer calendar")
 
-	prayerTime := time.Unix(body.PrayerUnixTime, 0)
+	location, err := time.LoadLocation(string(body.TimeZone))
+	if err != nil {
+		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Msg("successfully loaded time zone location")
+
+	prayerTime := time.Unix(body.PrayerUnixTime, 0).In(location)
 	prayerDay := prayerTime.Day()
 	isLastDayPrayer := prayer.IsLastDay(&prayerTime)
 	isPenultimateDayPrayer := prayer.IsPenultimateDay(&prayerTime)
 
-	checkedTime := time.Unix(body.CheckedAt, 0)
+	checkedTime := time.Unix(body.CheckedAt, 0).In(location)
 	isCheckedAtLastDay := prayer.IsLastDay(&checkedTime)
 
 	var usedPrayers prayer.Prayers
