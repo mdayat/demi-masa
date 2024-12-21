@@ -4,6 +4,10 @@ services:
     ports:
       - "24224:24224"
       - "24224:24224/udp"
+    environment:
+      - LOKI_HOST=${LOKI_HOST}
+      - LOKI_USER=${LOKI_USER}
+      - LOKI_PASSWORD=${LOKI_PASSWORD}
     volumes:
       - type: bind
         source: ./internal/config/fluent-bit.conf
