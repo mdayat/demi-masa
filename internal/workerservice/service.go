@@ -1,4 +1,4 @@
-package workerserver
+package workerservice
 
 import (
 	"github.com/hibiken/asynq"

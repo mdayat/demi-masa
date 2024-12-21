@@ -7,8 +7,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY internal ./internal
 COPY repository ./repository
-COPY cmd/workerserver ./cmd/workerserver
-RUN CGO_ENABLED=0 GOOS=linux go build -o ./worker cmd/workerserver/main.go
+COPY cmd/workerservice ./cmd/workerservice
+RUN CGO_ENABLED=0 GOOS=linux go build -o ./worker cmd/workerservice/main.go
 
 FROM base AS final
 WORKDIR /app

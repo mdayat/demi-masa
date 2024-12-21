@@ -8,13 +8,13 @@ vet: fmt
 	go vet ./...
 
 build-app: vet
-	go build -o dist/app cmd/httpserver/main.go
+	go build -o dist/app cmd/httpservice/main.go
 
 build-worker: vet
-	go build -o dist/worker cmd/workerserver/main.go
+	go build -o dist/worker cmd/workerservice/main.go
 
 run-app:
-	go run cmd/httpserver/main.go
+	go run cmd/httpservice/main.go
 
 run-worker:
-	go run cmd/workerserver/main.go
+	go run cmd/workerservice/main.go

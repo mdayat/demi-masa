@@ -8,7 +8,7 @@ import (
 	"github.com/mdayat/demi-masa-be/internal/prayer"
 	"github.com/mdayat/demi-masa-be/internal/services"
 	"github.com/mdayat/demi-masa-be/internal/task"
-	"github.com/mdayat/demi-masa-be/internal/workerserver"
+	"github.com/mdayat/demi-masa-be/internal/workerservice"
 	"github.com/mdayat/demi-masa-be/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -107,8 +107,8 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to schedule first prayer update task")
 	}
 
-	server, mux := workerserver.New()
-	if err := server.Run(mux); err != nil {
-		log.Fatal().Stack().Err(err).Msg("failed to run asynq server")
+	service, mux := workerservice.New()
+	if err := service.Run(mux); err != nil {
+		log.Fatal().Stack().Err(err).Msg("failed to run asynq service")
 	}
 }

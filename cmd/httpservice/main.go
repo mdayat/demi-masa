@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/mdayat/demi-masa-be/internal/config"
-	"github.com/mdayat/demi-masa-be/internal/httpserver"
+	"github.com/mdayat/demi-masa-be/internal/httpservice"
 	"github.com/mdayat/demi-masa-be/internal/services"
 	"github.com/rs/zerolog/log"
 )
@@ -34,6 +34,6 @@ func main() {
 	services.InitTwilio(config.Env.TWILIO_ACCOUNT_SID, config.Env.TWILIO_AUTH_TOKEN)
 	services.InitAsynq(config.Env.REDIS_URL)
 
-	server := httpserver.New()
-	http.ListenAndServe(":80", server)
+	service := httpservice.New()
+	http.ListenAndServe(":80", service)
 }

@@ -5,5 +5,5 @@ docker-compose stop worker
 
 sleep 3
 
-echo "Stopping redis service..."
+echo "Stopping all services..."
 docker-compose down

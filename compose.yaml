@@ -20,6 +20,11 @@ services:
       dockerfile: http.Dockerfile
     ports:
       - "80:80"
+    depends_on:
+      redis:
+        condition: service_started
+      fluentbit:
+        condition: service_started
     environment:
       - REDIS_URL=${REDIS_URL}
     logging:
@@ -32,6 +37,11 @@ services:
     build:
       context: .
       dockerfile: worker.Dockerfile
+    depends_on:
+      redis:
+        condition: service_started
+      fluentbit:
+        condition: service_started
     environment:
       - REDIS_URL=${REDIS_URL}
     logging:

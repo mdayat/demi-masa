@@ -7,8 +7,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY internal ./internal
 COPY repository ./repository
-COPY cmd/httpserver ./cmd/httpserver
-RUN CGO_ENABLED=0 GOOS=linux go build -o ./http cmd/httpserver/main.go
+COPY cmd/httpservice ./cmd/httpservice
+RUN CGO_ENABLED=0 GOOS=linux go build -o ./http cmd/httpservice/main.go
 
 FROM base AS final
 WORKDIR /app
