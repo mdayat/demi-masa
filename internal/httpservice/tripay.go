@@ -382,5 +382,5 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Int("status_code", http.StatusOK).Dur("response_time", time.Since(start)).Msg("request completed")
 }

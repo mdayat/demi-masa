@@ -76,7 +76,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Int("status_code", http.StatusOK).Dur("response_time", time.Since(start)).Msg("request completed")
 }
 
 func applyCoupon(ctx context.Context, couponCode string) (bool, error) {
@@ -271,7 +271,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+		logWithCtx.Info().Int("status_code", http.StatusCreated).Dur("response_time", time.Since(start)).Msg("request completed")
 	} else {
 		if couponCode.Valid {
 			shouldRollbackQuota = true
