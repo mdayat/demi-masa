@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ func handleUserDowngrade(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.UserDowngradePayload
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal user downgrade task payload")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to unmarshal user downgrade task payload")
 		return err
 	}
 
@@ -33,7 +34,7 @@ func handleUserDowngrade(ctx context.Context, asynqTask *asynq.Task) error {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to update user subscription to FREE")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Str("user_id", payload.UserID).Msg("failed to update user subscription to FREE")
 		return err
 	}
 	logWithCtx.Info().Str("user_id", payload.UserID).Msg("successfully updated user subscription to FREE")
@@ -45,20 +46,20 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.PrayerReminderPayload
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal prayer reminder task payload")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to unmarshal prayer reminder task payload")
 		return err
 	}
 
 	user, err := queries.GetUserPrayerByID(ctx, payload.UserID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to get user prayer by id")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Str("user_id", payload.UserID).Msg("failed to get user prayer by id")
 		return err
 	}
 	logWithCtx.Info().Str("user_id", payload.UserID).Msg("successfully get user prayer by id")
 
 	location, err := time.LoadLocation(string(user.TimeZone.IndonesiaTimeZone))
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to load time zone location")
 		return err
 	}
 
@@ -106,7 +107,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	)
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule prayer reminder")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to schedule prayer reminder")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully scheduled prayer reminder")
@@ -157,7 +158,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 
 	_, err = twilioClient.Api.CreateMessage(&params)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("phone_number", user.PhoneNumber.String).Msg("failed to send prayer reminder")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Str("phone_number", user.PhoneNumber.String).Msg("failed to send prayer reminder")
 		return err
 	}
 	logWithCtx.Info().Str("phone_number", user.PhoneNumber.String).Msg("successfully sent prayer reminder")
@@ -169,13 +170,13 @@ func handleLastPrayerReminder(ctx context.Context, asynqTask *asynq.Task) error 
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.PrayerReminderPayload
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal last prayer reminder task payload")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to unmarshal last prayer reminder task payload")
 		return err
 	}
 
 	userPhone, err := queries.GetUserPhoneByID(ctx, payload.UserID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to get user phone by id")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Str("user_id", payload.UserID).Msg("failed to get user phone by id")
 		return err
 	}
 	logWithCtx.Info().Str("user_id", payload.UserID).Msg("successfully get user phone by id")
@@ -191,7 +192,7 @@ func handleLastPrayerReminder(ctx context.Context, asynqTask *asynq.Task) error 
 
 	_, err = twilioClient.Api.CreateMessage(&params)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("phone_number", userPhone.String).Msg("failed to send last prayer reminder")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Str("phone_number", userPhone.String).Msg("failed to send last prayer reminder")
 		return err
 	}
 	logWithCtx.Info().Str("phone_number", userPhone.String).Msg("successfully sent last prayer reminder")
@@ -203,13 +204,13 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.PrayerRenewalTask
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal prayer renewal task payload")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to unmarshal prayer renewal task payload")
 		return err
 	}
 
 	location, err := time.LoadLocation(string(payload.TimeZone))
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to load time zone location")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully loaded time zone location")
@@ -218,7 +219,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	year := now.Year()
 	month, err := strconv.Atoi(fmt.Sprintf("%d", now.Month()))
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to convert string to integer")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to convert string to integer")
 		return err
 	}
 
@@ -238,14 +239,14 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 
 	unparsedPrayerCalendar, err := prayer.GetAladhanPrayerCalendar(URL)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get aladhan prayer calendar")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get aladhan prayer calendar")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully get aladhan prayer calendar")
 
 	parsedPrayerCalendar, err := prayer.ParseAladhanPrayerCalendar(unparsedPrayerCalendar, location, payload.TimeZone)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to parse aladhan prayer calendar")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to parse aladhan prayer calendar")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully parsed aladhan prayer calendar")
@@ -291,7 +292,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	)
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule prayer renewal")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to schedule prayer renewal")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully scheduled prayer renewal")
@@ -303,14 +304,14 @@ func handleTaskRemoval(ctx context.Context, _ *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	err := queries.RemoveCheckedTask(ctx)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to delete checked tasks")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to delete checked tasks")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully deleted checked tasks")
 
 	err = task.ScheduleTaskRemovalTask()
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule task removal task")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to schedule task removal task")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully scheduled task removal task")
@@ -333,14 +334,14 @@ func handlePrayerUpdate(ctx context.Context, _ *asynq.Task) error {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to update prayers status to missed")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to update prayers status to missed")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully updated prayers status to missed")
 
 	err = prayer.SchedulePrayerUpdateTask(&now)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule prayer update task")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to schedule prayer update task")
 		return err
 	}
 	logWithCtx.Info().Msg("successfully scheduled prayer update task")

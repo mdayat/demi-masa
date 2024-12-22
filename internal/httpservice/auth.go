@@ -42,8 +42,7 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 	var idTokenClaims idTokenClaims
 	err = mapstructure.Decode(token.Claims, &idTokenClaims)
 	if err != nil {
-		errMsg := "failed to convert map of id token claims to struct"
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg(errMsg)
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to convert id token claims map to struct")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -87,8 +86,7 @@ func loginHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: statusCode, Data: respBody})
 	if err != nil {
-		errMsg := "failed to send successful response body"
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg(errMsg)
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

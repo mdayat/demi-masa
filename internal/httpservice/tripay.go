@@ -224,10 +224,13 @@ func updateTxAndRollbackCoupon(ctx context.Context, params *updateTxAndRollbackC
 }
 
 func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
-	logWithCtx := log.Ctx(req.Context()).With().Logger()
+	start := time.Now()
+	ctx := req.Context()
+	logWithCtx := log.Ctx(ctx).With().Logger()
+
 	bytes, err := io.ReadAll(req.Body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to read tripay webhook request")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to read tripay webhook request")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -239,7 +242,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 	signature := hex.EncodeToString(hash.Sum(nil))
 	tripaySignature := req.Header.Get("X-Callback-Signature")
 	if signature != tripaySignature {
-		logWithCtx.Error().Err(err).Msg("invalid signature")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusForbidden).Msg("invalid signature")
 		http.Error(res, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
@@ -247,15 +250,20 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 	var body tripayWebhookRequest
 	err = json.Unmarshal(bytes, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal tripay webhook request")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to unmarshal tripay webhook request")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	ctx := context.Background()
 	merchantRefBytes, err := uuid.Parse(body.MerchantRef)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to parse merchant ref uuid string to bytes")
+		logWithCtx.
+			Error().
+			Err(err).
+			Int("status_code", http.StatusInternalServerError).
+			Str("transaction_id", body.MerchantRef).
+			Msg("failed to parse merchant ref uuid string to bytes")
+
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -264,47 +272,37 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 	if body.Status == string(repository.TransactionStatusPAID) {
 		tx, err := queries.GetTxWithSubsPlanByID(ctx, pgtype.UUID{Bytes: merchantRefBytes, Valid: true})
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				logWithCtx.Error().Err(err).Str("transaction_id", body.MerchantRef).Msg("transaction not found")
-				http.Error(res, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			} else {
-				logWithCtx.Error().Err(err).Str("transaction_id", body.MerchantRef).Msg("failed to get transaction by id")
-				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-		log.Info().Str("transaction_id", body.MerchantRef).Msg("successfully get transaction with subscription plan by id")
-
-		secondsInMonth := time.Hour.Seconds() * 24 * 30
-		err = updateTxAndUser(
-			ctx,
-			&updateTxAndUserParams{
-				txID:         merchantRefBytes,
-				userID:       tx.UserID,
-				subsDuration: int64(secondsInMonth) * int64(tx.DurationInMonths),
-				paidAt:       body.PaidAt,
-			},
-		)
-
-		if err != nil {
-			log.
+			logWithCtx.
 				Error().
 				Err(err).
+				Int("status_code", http.StatusInternalServerError).
 				Str("transaction_id", body.MerchantRef).
-				Str("transaction_status", body.Status).
+				Msg("failed to get transaction with subscription plan by id")
+
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		monthInSecs := time.Hour.Seconds() * 24 * 30
+		err = updateTxAndUser(ctx, &updateTxAndUserParams{
+			txID:         merchantRefBytes,
+			userID:       tx.UserID,
+			subsDuration: int64(monthInSecs) * int64(tx.DurationInMonths),
+			paidAt:       body.PaidAt,
+		})
+
+		if err != nil {
+			logWithCtx.
+				Error().
+				Err(err).
+				Int("status_code", http.StatusInternalServerError).
+				Str("transaction_id", body.MerchantRef).
 				Str("user_id", tx.UserID).
 				Msg("failed to update transaction status and user subscription to PREMIUM")
 
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-
-		log.
-			Info().
-			Str("transaction_id", body.MerchantRef).
-			Str("transaction_status", body.Status).
-			Str("user_id", tx.UserID).
-			Msg("successfully updated transaction status and user subscription to PREMIUM")
 	}
 
 	// update transaction status and rollback coupon quota
@@ -312,43 +310,57 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 		tx, err := queries.GetTxByID(ctx, pgtype.UUID{Bytes: merchantRefBytes, Valid: true})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				logWithCtx.Error().Err(err).Str("transaction_id", body.MerchantRef).Msg("transaction not found")
+				logWithCtx.
+					Error().
+					Err(err).
+					Int("status_code", http.StatusNotFound).
+					Str("merchant_ref", body.MerchantRef).
+					Msg("transaction not found")
+
 				http.Error(res, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			} else {
-				logWithCtx.Error().Err(err).Str("transaction_id", body.MerchantRef).Msg("failed to get transaction by id")
+				logWithCtx.
+					Error().
+					Err(err).
+					Int("status_code", http.StatusInternalServerError).
+					Str("transaction_id", body.MerchantRef).
+					Msg("failed to get transaction by id")
+
 				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
 		}
-		log.Info().Str("transaction_id", body.MerchantRef).Msg("successfully get transaction by id")
 
 		// check for unknown status
 		txStatus := body.Status
-		if body.Status != string(repository.TransactionStatusREFUND) &&
-			body.Status != string(repository.TransactionStatusEXPIRED) &&
-			body.Status != string(repository.TransactionStatusFAILED) {
+		isNotFailed := body.Status != string(repository.TransactionStatusFAILED)
+		isNotExpired := body.Status != string(repository.TransactionStatusEXPIRED)
+		isNotRefund := body.Status != string(repository.TransactionStatusREFUND)
+
+		if isNotFailed && isNotExpired && isNotRefund {
 			txStatus = string(repository.TransactionStatusFAILED)
-			log.
-				Error().
-				Err(errors.New("unknown tripay transaction status")).
-				Str("transaction_id", body.MerchantRef).
-				Str("transaction_status", body.Status).
-				Msg("")
-		}
+			err := errors.New("unknown tripay transaction status")
 
-		err = updateTxAndRollbackCoupon(
-			ctx,
-			&updateTxAndRollbackCouponParams{
-				txID:       merchantRefBytes,
-				txStatus:   txStatus,
-				couponCode: tx.CouponCode,
-			},
-		)
-
-		if err != nil {
-			log.
+			logWithCtx.
 				Error().
 				Err(err).
+				Int("status_code", http.StatusBadRequest).
+				Str("transaction_id", body.MerchantRef).
+				Str("transaction_status", body.Status).
+				Send()
+		}
+
+		err = updateTxAndRollbackCoupon(ctx, &updateTxAndRollbackCouponParams{
+			txID:       merchantRefBytes,
+			txStatus:   txStatus,
+			couponCode: tx.CouponCode,
+		})
+
+		if err != nil {
+			logWithCtx.
+				Error().
+				Err(err).
+				Int("status_code", http.StatusInternalServerError).
 				Str("transaction_id", body.MerchantRef).
 				Str("transaction_status", body.Status).
 				Str("coupon_code", tx.CouponCode.String).
@@ -357,13 +369,6 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-
-		log.
-			Info().
-			Str("transaction_id", body.MerchantRef).
-			Str("transaction_status", body.Status).
-			Str("coupon_code", tx.CouponCode.String).
-			Msg("successfully updated transaction status and/or rollback coupon quota")
 	}
 
 	respBody := struct {
@@ -374,7 +379,8 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to send json success response")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
 }

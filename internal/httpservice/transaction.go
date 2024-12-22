@@ -28,24 +28,24 @@ type transaction struct {
 }
 
 func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
-	logWithCtx := log.Ctx(req.Context()).With().Logger()
-	ctx := context.Background()
-	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+	start := time.Now()
+	ctx := req.Context()
+	logWithCtx := log.Ctx(ctx).With().Logger()
 
+	userID := fmt.Sprintf("%s", ctx.Value("userID"))
 	result, err := queries.GetTxByUserID(ctx, userID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", userID).Msg("failed to get transactions by user id")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get transactions by user id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Str("user_id", userID).Msg("successfully get transactions by user id")
 
 	resultLen := len(result)
 	transactions := make([]transaction, 0, resultLen)
 	for i := 0; i < resultLen; i++ {
 		transactionID, err := result[i].TransactionID.Value()
 		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to get transaction pgtype.UUID value")
+			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get transaction UUID from pgtype.UUID")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -72,9 +72,11 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &transactions})
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to send json success response")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
 	}
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
 }
 
 func applyCoupon(ctx context.Context, couponCode string) (bool, error) {
@@ -89,7 +91,10 @@ func applyCoupon(ctx context.Context, couponCode string) (bool, error) {
 }
 
 func createTxHandler(res http.ResponseWriter, req *http.Request) {
-	logWithCtx := log.Ctx(req.Context()).With().Logger()
+	start := time.Now()
+	ctx := req.Context()
+	logWithCtx := log.Ctx(ctx).With().Logger()
+
 	var shouldRollbackQuota bool
 	var couponCode pgtype.Text
 
@@ -97,7 +102,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 		if shouldRollbackQuota {
 			err := retry.Do(
 				func() error {
-					err := queries.IncrementCouponQuota(req.Context(), couponCode.String)
+					err := queries.IncrementCouponQuota(ctx, couponCode.String)
 					if err != nil {
 						return err
 					}
@@ -105,14 +110,17 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 					return nil
 				},
 				retry.Attempts(3),
-				retry.Context(req.Context()),
+				retry.Context(ctx),
 			)
 
 			if err != nil {
-				logWithCtx.Error().Err(err).Str("coupon_code", couponCode.String).Msg("failed to roll back coupon quota")
-				return
+				logWithCtx.
+					Error().
+					Err(err).
+					Int("status_code", http.StatusInternalServerError).
+					Str("coupon_code", couponCode.String).
+					Msg("failed to roll back coupon quota")
 			}
-			logWithCtx.Info().Msg("successfully rolled back coupon quota")
 		}
 	}()
 
@@ -129,25 +137,21 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 
 	err := decodeAndValidateJSONBody(req, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("invalid request body")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Msg("invalid request body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	if body.CouponCode != "" {
-		valid, err := applyCoupon(req.Context(), body.CouponCode)
+		valid, err := applyCoupon(ctx, body.CouponCode)
 		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to decrement coupon quota")
+			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to decrement coupon quota")
 			return
 		}
 
 		if valid {
-			logWithCtx.Info().Msg("successfully decremented coupon quota")
 			couponCode = pgtype.Text{String: body.CouponCode, Valid: true}
-		} else {
-			logWithCtx.Info().Msg("invalid coupon code or exhausted coupon quota")
 		}
-
 	}
 
 	if couponCode.Valid {
@@ -184,13 +188,12 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			shouldRollbackQuota = true
 		}
 
-		logWithCtx.Error().Err(err).Str("merchant_ref", merchantRefString).Msg("failed to create tripay transaction")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to create tripay transaction")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	if resp.Success {
-		logWithCtx.Info().Str("merchant_ref", merchantRefString).Msg("successfully created tripay transaction")
 		var data tripayTxData
 		err = json.Unmarshal(resp.Data, &data)
 		if err != nil {
@@ -198,23 +201,35 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 				shouldRollbackQuota = true
 			}
 
-			logWithCtx.Error().Err(err).Str("merchant_ref", merchantRefString).Msg("failed to unmarshal successful tripay transaction")
+			logWithCtx.
+				Error().
+				Err(err).
+				Int("status_code", http.StatusInternalServerError).
+				Str("merchant_ref", merchantRefString).
+				Msg("failed to unmarshal successful tripay transaction")
+
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+		userID := fmt.Sprintf("%s", ctx.Value("userID"))
 		expiredAt := time.Unix(oneHourExpiration, 0)
 
 		subsPlanIDBytes, err := uuid.Parse(body.SubsPlanID)
 		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to parse subscription plan uuid string to bytes")
+			errMsg := "failed to parse subscription plan uuid string to bytes"
+			logWithCtx.
+				Error().
+				Err(err).
+				Int("status_code", http.StatusInternalServerError).
+				Str("merchant_ref", merchantRefString).
+				Msg(errMsg)
+
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		logWithCtx.Info().Msg("successfully parsed subscription plan uuid string to bytes")
 
-		err = queries.CreateTx(req.Context(), repository.CreateTxParams{
+		err = queries.CreateTx(ctx, repository.CreateTxParams{
 			ID:                 pgtype.UUID{Bytes: merchantRef, Valid: true},
 			UserID:             userID,
 			SubscriptionPlanID: pgtype.UUID{Bytes: subsPlanIDBytes, Valid: true},
@@ -230,11 +245,16 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 				shouldRollbackQuota = true
 			}
 
-			logWithCtx.Error().Err(err).Str("merchant_ref", merchantRefString).Msg("failed to create transaction")
+			logWithCtx.
+				Error().
+				Err(err).
+				Int("status_code", http.StatusInternalServerError).
+				Str("merchant_ref", merchantRefString).
+				Msg("failed to create transaction")
+
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		logWithCtx.Info().Str("transaction_id", merchantRefString).Msg("successfully created transaction")
 
 		respBody := transaction{
 			ID:               fmt.Sprintf("%s", merchantRefString),
@@ -247,15 +267,18 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 
 		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: &respBody})
 		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to send json success response")
+			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
+		logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
 	} else {
 		if couponCode.Valid {
 			shouldRollbackQuota = true
 		}
 
-		logWithCtx.Error().Err(errors.New(resp.Message)).Msg("failed to create tripay transaction")
+		err := errors.New(resp.Message)
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to create tripay transaction")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

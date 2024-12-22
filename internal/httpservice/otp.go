@@ -276,7 +276,7 @@ func verifyOTPHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	userID := fmt.Sprintf("%s", req.Context().Value("userID"))
+	userID := fmt.Sprintf("%s", ctx.Value("userID"))
 	err = queries.UpdateUserPhoneNumber(ctx, repository.UpdateUserPhoneNumberParams{
 		ID:            userID,
 		PhoneNumber:   pgtype.Text{String: body.PhoneNumber, Valid: true},

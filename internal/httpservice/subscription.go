@@ -1,7 +1,6 @@
 package httpservice
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -18,23 +17,23 @@ type subscriptionPlan struct {
 }
 
 func getSubsPlansHandler(res http.ResponseWriter, req *http.Request) {
-	logWithCtx := log.Ctx(req.Context()).With().Logger()
-	ctx := context.Background()
+	start := time.Now()
+	ctx := req.Context()
+	logWithCtx := log.Ctx(ctx).With().Logger()
 
 	result, err := queries.GetSubsPlans(ctx)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get subscription plans")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get subscription plans")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	logWithCtx.Info().Msg("successfully get subscription plans")
 
 	resultLen := len(result)
 	subsPlans := make([]subscriptionPlan, 0, resultLen)
 	for i := 0; i < resultLen; i++ {
 		subsPlanID, err := result[i].ID.Value()
 		if err != nil {
-			logWithCtx.Error().Err(err).Msg("failed to get subscription plan pgtype.UUID value")
+			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get subscription plan UUID from pgtype.UUID")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -52,7 +51,9 @@ func getSubsPlansHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &subsPlans})
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to send json success response")
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
 	}
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
 }

@@ -17,22 +17,23 @@ import (
 )
 
 func deleteUserHandler(res http.ResponseWriter, req *http.Request) {
-	logWithCtx := log.Ctx(req.Context()).With().Logger()
-	userID := chi.URLParam(req, "userID")
+	start := time.Now()
+	ctx := req.Context()
+	logWithCtx := log.Ctx(ctx).With().Logger()
 
-	ctx := context.Background()
+	userID := chi.URLParam(req, "userID")
 	_, err := queries.DeleteUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			logWithCtx.Error().Err(err).Str("user_id", userID).Msg("user not found")
+			logWithCtx.Error().Err(err).Int("status_code", http.StatusNotFound).Msg("user not found")
 			http.Error(res, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		} else {
-			logWithCtx.Error().Err(err).Str("user_id", userID).Msg("failed to delete user by id")
+			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to delete user by id")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		return
 	}
-	logWithCtx.Info().Str("user_id", userID).Msg("successfully deleted user")
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
 }
 
 func addUserToTaskQueue(ctx context.Context) (*prayer.Prayer, error) {
@@ -101,13 +102,12 @@ func addUserToTaskQueue(ctx context.Context) (*prayer.Prayer, error) {
 	return &nextPrayer, nil
 }
 
-func updateTimeZone(ctx context.Context) error {
+func updateTimeZone(ctx context.Context, userID string) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to start db tx")
 	}
 
-	userID := fmt.Sprintf("%s", ctx.Value("userID"))
 	qtx := queries.WithTx(tx)
 	userTimeZone, err := qtx.GetUserTimeZoneByID(ctx, userID)
 	if err != nil {
@@ -152,42 +152,33 @@ func updateTimeZone(ctx context.Context) error {
 }
 
 func updateTimeZoneHandler(res http.ResponseWriter, req *http.Request) {
-	ctx, cancel := context.WithTimeout(req.Context(), time.Second*5)
-	defer cancel()
+	start := time.Now()
+	ctx := req.Context()
 	logWithCtx := log.Ctx(ctx).With().Logger()
-
-	select {
-	case <-ctx.Done():
-		logWithCtx.Error().Err(errors.New("request timed out")).Send()
-		http.Error(res, http.StatusText(http.StatusRequestTimeout), http.StatusRequestTimeout)
-	default:
-		var body struct {
-			TimeZone repository.IndonesiaTimeZone `json:"time_zone" validate:"required"`
-		}
-
-		err := decodeAndValidateJSONBody(req, &body)
-		if err != nil {
-			logWithCtx.Error().Err(err).Msg("invalid request body")
-			http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-			return
-		}
-		logWithCtx.Info().Msg("successfully decoded and validated request body")
-
-		err = updateTimeZone(context.WithValue(ctx, "time_zone", body.TimeZone))
-		if err != nil {
-			logWithCtx.
-				Error().
-				Err(err).
-				Str("time_zone", string(body.TimeZone)).
-				Msg("failed to update user time zone and add user to task queue")
-
-			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		logWithCtx.
-			Info().
-			Str("time_zone", string(body.TimeZone)).
-			Msg("successfully updated user time zone and add user to task queue")
+	var body struct {
+		TimeZone repository.IndonesiaTimeZone `json:"time_zone" validate:"required"`
 	}
+
+	err := decodeAndValidateJSONBody(req, &body)
+	if err != nil {
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Msg("invalid request body")
+		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	userID := fmt.Sprintf("%s", ctx.Value("userID"))
+	err = updateTimeZone(context.WithValue(ctx, "time_zone", body.TimeZone), userID)
+	if err != nil {
+		logWithCtx.
+			Error().
+			Err(err).
+			Int("status_code", http.StatusInternalServerError).
+			Str("user_id", userID).
+			Str("time_zone", string(body.TimeZone)).
+			Msg("failed to update user time zone and add user to task queue")
+
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
 }
