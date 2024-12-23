@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mdayat/demi-masa-be/internal/prayer"
 	"github.com/mdayat/demi-masa-be/internal/task"
@@ -364,7 +365,16 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = queries.UpdatePrayerStatus(ctx, repository.UpdatePrayerStatusParams{
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		errMsg := "failed to begin tx to update prayer status and/or delete last prayer reminder"
+		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg(errMsg)
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	qtx := queries.WithTx(tx)
+	err = qtx.UpdatePrayerStatus(ctx, repository.UpdatePrayerStatusParams{
 		ID:     pgtype.UUID{Bytes: prayerIDBytes, Valid: true},
 		Status: repository.NullPrayerStatus{PrayerStatus: prayerStatus, Valid: true},
 	})
@@ -376,10 +386,14 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	userID := fmt.Sprintf("%s", ctx.Value("userID"))
+	asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName)
+
 	if body.AccountType == repository.AccountTypePREMIUM {
-		asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName)
-		err = asynqInspector.DeleteTask(task.DefaultQueue, asynqTaskID)
-		if err != nil {
+		err := asynqInspector.DeleteTask(task.DefaultQueue, asynqTaskID)
+		isNotQueueNotFound := errors.Is(err, asynq.ErrQueueNotFound) == false
+		isNotTaskNotFound := errors.Is(err, asynq.ErrTaskNotFound) == false
+
+		if err != nil && isNotQueueNotFound && isNotTaskNotFound {
 			logWithCtx.
 				Error().
 				Err(err).
@@ -390,6 +404,20 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		errMsg := "failed to commit db tx to update prayer status and/or delete last prayer reminder"
+		logWithCtx.
+			Error().
+			Err(err).
+			Int("status_code", http.StatusInternalServerError).
+			Str("task_id", asynqTaskID).
+			Msg(errMsg)
+
+		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
 	}
 
 	respBody := struct {
