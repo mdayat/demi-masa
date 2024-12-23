@@ -25,10 +25,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      redis:
-        condition: service_started
-      fluentbit:
-        condition: service_started
+      - redis
+      - fluentbit
     environment:
       - REDIS_URL=${REDIS_URL}
     logging:
@@ -42,10 +40,8 @@ services:
       context: .
       dockerfile: worker.Dockerfile
     depends_on:
-      redis:
-        condition: service_started
-      fluentbit:
-        condition: service_started
+      - redis
+      - fluentbit
     environment:
       - REDIS_URL=${REDIS_URL}
     logging:
