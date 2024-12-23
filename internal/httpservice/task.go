@@ -118,7 +118,7 @@ func updateTaskHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var body struct {
 		Name        string `json:"name" validate:"required"`
-		Description string `json:"description" validate:"required"`
+		Description string `json:"description"`
 		Checked     bool   `json:"checked"`
 	}
 
