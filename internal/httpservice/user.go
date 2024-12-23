@@ -9,9 +9,9 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
-	"github.com/mdayat/demi-masa-be/internal/prayer"
-	"github.com/mdayat/demi-masa-be/internal/task"
-	"github.com/mdayat/demi-masa-be/repository"
+	"github.com/mdayat/demi-masa-backend/internal/prayer"
+	"github.com/mdayat/demi-masa-backend/internal/task"
+	"github.com/mdayat/demi-masa-backend/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )

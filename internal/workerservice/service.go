@@ -2,10 +2,10 @@ package workerservice
 
 import (
 	"github.com/hibiken/asynq"
-	"github.com/mdayat/demi-masa-be/internal/config"
-	"github.com/mdayat/demi-masa-be/internal/services"
-	"github.com/mdayat/demi-masa-be/internal/task"
-	"github.com/mdayat/demi-masa-be/repository"
+	"github.com/mdayat/demi-masa-backend/internal/config"
+	"github.com/mdayat/demi-masa-backend/internal/services"
+	"github.com/mdayat/demi-masa-backend/internal/task"
+	"github.com/mdayat/demi-masa-backend/repository"
 	"github.com/redis/go-redis/v9"
 	"github.com/twilio/twilio-go"
 )

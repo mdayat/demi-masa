@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
-	"github.com/mdayat/demi-masa-be/internal/prayer"
-	"github.com/mdayat/demi-masa-be/internal/task"
-	"github.com/mdayat/demi-masa-be/repository"
+	"github.com/mdayat/demi-masa-backend/internal/prayer"
+	"github.com/mdayat/demi-masa-backend/internal/task"
+	"github.com/mdayat/demi-masa-backend/repository"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"

@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/httprate"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mdayat/demi-masa-be/internal/services"
-	"github.com/mdayat/demi-masa-be/repository"
+	"github.com/mdayat/demi-masa-backend/internal/services"
+	"github.com/mdayat/demi-masa-backend/repository"
 	"github.com/redis/go-redis/v9"
 	"github.com/twilio/twilio-go"
 )

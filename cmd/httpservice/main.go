@@ -5,9 +5,9 @@ import (
 
 	"net/http"
 
-	"github.com/mdayat/demi-masa-be/internal/config"
-	"github.com/mdayat/demi-masa-be/internal/httpservice"
-	"github.com/mdayat/demi-masa-be/internal/services"
+	"github.com/mdayat/demi-masa-backend/internal/config"
+	"github.com/mdayat/demi-masa-backend/internal/httpservice"
+	"github.com/mdayat/demi-masa-backend/internal/services"
 	"github.com/rs/zerolog/log"
 )
 
