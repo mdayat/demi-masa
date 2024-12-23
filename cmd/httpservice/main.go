@@ -35,5 +35,5 @@ func main() {
 	services.InitAsynq(config.Env.REDIS_URL)
 
 	service := httpservice.New()
-	http.ListenAndServe(":80", service)
+	http.ListenAndServe(":8080", service)
 }

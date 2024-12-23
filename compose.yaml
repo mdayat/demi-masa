@@ -10,7 +10,7 @@ services:
       - LOKI_PASSWORD=${LOKI_PASSWORD}
     volumes:
       - type: bind
-        source: ./internal/config/fluent-bit.conf
+        source: ./scripts/fluent-bit.conf
         target: /fluent-bit/etc/fluent-bit.conf
 
   redis:
@@ -18,12 +18,23 @@ services:
     ports:
       - "6379:6379"
 
-  http:
+  nginx:
+    image: nginx:1.27.3-alpine
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - type: bind
+        source: ./scripts/nginx.conf
+        target: /etc/nginx/conf.d/default.conf
+
+  backend:
     build:
       context: .
       dockerfile: http.Dockerfile
     ports:
-      - "80:80"
+      - "8080:8080"
     depends_on:
       - redis
       - fluentbit

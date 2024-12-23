@@ -14,5 +14,5 @@ FROM base AS final
 WORKDIR /app
 COPY --from=build /app/http ./
 COPY .env service-account-file.json ./
-EXPOSE 80
+EXPOSE 8080
 ENTRYPOINT ["/app/http"]
