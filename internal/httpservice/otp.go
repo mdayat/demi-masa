@@ -166,6 +166,7 @@ func generateOTPHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	res.WriteHeader(http.StatusCreated)
 	logWithCtx.Info().Int("status_code", http.StatusCreated).Dur("response_time", time.Since(start)).Msg("request completed")
 }
 
