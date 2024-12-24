@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mdayat/demi-masa-backend/internal/services"
-	"github.com/mdayat/demi-masa-backend/repository"
+	"github.com/odemimasa/backend/internal/services"
+	"github.com/odemimasa/backend/repository"
 )
 
 func MakePrayerCalendarKey(timeZone repository.IndonesiaTimeZone) string {

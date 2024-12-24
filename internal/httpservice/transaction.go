@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/mdayat/demi-masa-backend/repository"
+	"github.com/odemimasa/backend/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )

@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mdayat/demi-masa-backend/repository"
+	"github.com/odemimasa/backend/repository"
 )
 
 var (

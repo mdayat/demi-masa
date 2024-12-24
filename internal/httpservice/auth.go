@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/mdayat/demi-masa-backend/repository"
 	"github.com/mitchellh/mapstructure"
+	"github.com/odemimasa/backend/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )

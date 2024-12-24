@@ -16,9 +16,9 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/mdayat/demi-masa-backend/internal/config"
-	"github.com/mdayat/demi-masa-backend/internal/task"
-	"github.com/mdayat/demi-masa-backend/repository"
+	"github.com/odemimasa/backend/internal/config"
+	"github.com/odemimasa/backend/internal/task"
+	"github.com/odemimasa/backend/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )

@@ -1,4 +1,4 @@
-module github.com/mdayat/demi-masa-backend
+module github.com/odemimasa/backend
 
 go 1.23.3
 

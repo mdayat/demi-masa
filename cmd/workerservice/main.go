@@ -4,12 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/mdayat/demi-masa-backend/internal/config"
-	"github.com/mdayat/demi-masa-backend/internal/prayer"
-	"github.com/mdayat/demi-masa-backend/internal/services"
-	"github.com/mdayat/demi-masa-backend/internal/task"
-	"github.com/mdayat/demi-masa-backend/internal/workerservice"
-	"github.com/mdayat/demi-masa-backend/repository"
+	"github.com/odemimasa/backend/internal/config"
+	"github.com/odemimasa/backend/internal/prayer"
+	"github.com/odemimasa/backend/internal/services"
+	"github.com/odemimasa/backend/internal/task"
+	"github.com/odemimasa/backend/internal/workerservice"
+	"github.com/odemimasa/backend/repository"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )

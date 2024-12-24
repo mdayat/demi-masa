@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
-	"github.com/mdayat/demi-masa-backend/internal/services"
-	"github.com/mdayat/demi-masa-backend/repository"
+	"github.com/odemimasa/backend/internal/services"
+	"github.com/odemimasa/backend/repository"
 	"github.com/pkg/errors"
 )
 
