@@ -18,6 +18,17 @@ services:
     ports:
       - "6379:6379"
 
+  asynqmon:
+    image: hibiken/asynqmon
+    platform: linux/amd64
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_ADDR=redis:6379
+    command: ["--port", "3000"]
+    depends_on:
+      - worker
+
   nginx:
     image: nginx:1.27.3-alpine
     ports:
@@ -25,6 +36,7 @@ services:
       - "443:443"
     depends_on:
       - backend
+      - asynqmon
     volumes:
       - type: bind
         source: ./scripts/nginx.conf
