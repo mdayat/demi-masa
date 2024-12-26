@@ -38,7 +38,7 @@ func handleUserDowngrade(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
 	return nil
 }
 
@@ -159,7 +159,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		logWithCtx.Error().Err(err).Str("phone_number", user.PhoneNumber.String).Msg("failed to send prayer reminder")
 		return err
 	}
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
 
 	return nil
 }
@@ -193,7 +193,7 @@ func handleLastPrayerReminder(ctx context.Context, asynqTask *asynq.Task) error 
 		logWithCtx.Error().Err(err).Str("phone_number", userPhone.String).Msg("failed to send last prayer reminder")
 		return err
 	}
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
 
 	return nil
 }
@@ -291,7 +291,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 		logWithCtx.Error().Err(err).Msg("failed to schedule prayer renewal")
 		return err
 	}
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
 
 	return nil
 }
@@ -310,7 +310,7 @@ func handleTaskRemoval(ctx context.Context, _ *asynq.Task) error {
 		logWithCtx.Error().Err(err).Msg("failed to schedule task removal task")
 		return err
 	}
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
 
 	return nil
 }
@@ -340,7 +340,7 @@ func handlePrayerUpdate(ctx context.Context, _ *asynq.Task) error {
 		logWithCtx.Error().Err(err).Msg("failed to schedule prayer update task")
 		return err
 	}
-	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("request completed")
+	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
 
 	return nil
 }
