@@ -14,6 +14,10 @@ export default defineConfig({
   resolve: {
     extensions: [".ts", ".tsx"],
     alias: {
+      "@components/solidui": path.resolve(
+        __dirname,
+        "./src/components/solidui"
+      ),
       "@components": path.resolve(__dirname, "./src/components"),
       "@libs": path.resolve(__dirname, "./src/libs"),
       "@utils": path.resolve(__dirname, "./src/utils"),
