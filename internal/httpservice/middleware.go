@@ -28,24 +28,12 @@ func authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := req.WithContext(context.WithValue(req.Context(), "userID", token.UID))
-		next.ServeHTTP(res, ctx)
+		next.ServeHTTP(res, req.WithContext(context.WithValue(req.Context(), "userID", token.UID)))
 	})
-}
-
-type loggerResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (lrw *loggerResponseWriter) WriteHeader(statusCode int) {
-	lrw.statusCode = statusCode
-	lrw.ResponseWriter.WriteHeader(statusCode)
 }
 
 func logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		lrw := loggerResponseWriter{res, http.StatusOK}
 		subLogger := log.
 			With().
 			Str("request_id", uuid.New().String()).
@@ -54,7 +42,6 @@ func logger(next http.Handler) http.Handler {
 			Str("client_ip", req.RemoteAddr).
 			Logger()
 
-		ctx := req.WithContext(subLogger.WithContext(req.Context()))
-		next.ServeHTTP(&lrw, ctx)
+		next.ServeHTTP(res, req.WithContext(subLogger.WithContext(req.Context())))
 	})
 }
