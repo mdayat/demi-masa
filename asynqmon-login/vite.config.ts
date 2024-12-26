@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [solidPlugin()],
+  envDir: "./../",
   server: {
     port: 3000,
   },
