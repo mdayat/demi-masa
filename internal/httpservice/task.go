@@ -27,7 +27,7 @@ func getTasksHandler(res http.ResponseWriter, req *http.Request) {
 
 	tasks, err := queries.GetTasksByUserID(ctx, userID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get tasks by user id")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get tasks by user id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -36,7 +36,7 @@ func getTasksHandler(res http.ResponseWriter, req *http.Request) {
 	for i, task := range tasks {
 		taskID, err := task.ID.Value()
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get task UUID from pgtype.UUID")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get task UUID from pgtype.UUID")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -51,7 +51,7 @@ func getTasksHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -69,7 +69,7 @@ func createTaskHandler(res http.ResponseWriter, req *http.Request) {
 
 	err := decodeAndValidateJSONBody(req, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Msg("invalid request body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Msg("invalid request body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -82,14 +82,14 @@ func createTaskHandler(res http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to create task")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to create task")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	taskID, err := task.ID.Value()
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get task UUID from pgtype.UUID")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get task UUID from pgtype.UUID")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -103,7 +103,7 @@ func createTaskHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: respBody})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -124,7 +124,7 @@ func updateTaskHandler(res http.ResponseWriter, req *http.Request) {
 
 	err := decodeAndValidateJSONBody(req, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Msg("invalid request body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Msg("invalid request body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -132,7 +132,7 @@ func updateTaskHandler(res http.ResponseWriter, req *http.Request) {
 	taskID := chi.URLParam(req, "taskID")
 	taskIDBytes, err := uuid.Parse(taskID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to parse task uuid string to bytes")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to parse task uuid string to bytes")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -145,7 +145,7 @@ func updateTaskHandler(res http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to update task by id")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to update task by id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -160,14 +160,14 @@ func deleteTaskHandler(res http.ResponseWriter, req *http.Request) {
 	taskID := chi.URLParam(req, "taskID")
 	taskIDBytes, err := uuid.Parse(taskID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to parse task uuid string to bytes")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to parse task uuid string to bytes")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	err = queries.DeleteTaskByID(ctx, pgtype.UUID{Bytes: taskIDBytes, Valid: true})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to delete task by id")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to delete task by id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

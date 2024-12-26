@@ -10,14 +10,6 @@ import (
 
 var loggerOnce sync.Once
 
-type LogCallerHook struct{}
-
-func (h LogCallerHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
-	if level == zerolog.ErrorLevel {
-		e.Caller()
-	}
-}
-
 func InitLogger() {
 	loggerOnce.Do(func() {
 		zerolog.TimeFieldFormat = zerolog.TimeFormatUnix

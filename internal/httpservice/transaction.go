@@ -35,7 +35,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 	userID := fmt.Sprintf("%s", ctx.Value("userID"))
 	result, err := queries.GetTxByUserID(ctx, userID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get transactions by user id")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get transactions by user id")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -45,7 +45,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 	for i := 0; i < resultLen; i++ {
 		transactionID, err := result[i].TransactionID.Value()
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get transaction UUID from pgtype.UUID")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get transaction UUID from pgtype.UUID")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -72,7 +72,7 @@ func getTransactionsHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &transactions})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -137,7 +137,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 
 	err := decodeAndValidateJSONBody(req, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Msg("invalid request body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Msg("invalid request body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -145,7 +145,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 	if body.CouponCode != "" {
 		valid, err := applyCoupon(ctx, body.CouponCode)
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to decrement coupon quota")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to decrement coupon quota")
 			return
 		}
 
@@ -188,7 +188,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			shouldRollbackQuota = true
 		}
 
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to create tripay transaction")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to create tripay transaction")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -204,6 +204,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusInternalServerError).
 				Str("merchant_ref", merchantRefString).
 				Msg("failed to unmarshal successful tripay transaction")
@@ -221,6 +222,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusInternalServerError).
 				Str("merchant_ref", merchantRefString).
 				Msg(errMsg)
@@ -248,6 +250,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusInternalServerError).
 				Str("merchant_ref", merchantRefString).
 				Msg("failed to create transaction")
@@ -267,7 +270,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 
 		err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusCreated, Data: &respBody})
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -278,7 +281,7 @@ func createTxHandler(res http.ResponseWriter, req *http.Request) {
 		}
 
 		err := errors.New(resp.Message)
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to create tripay transaction")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to create tripay transaction")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

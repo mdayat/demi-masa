@@ -25,10 +25,10 @@ func deleteUserHandler(res http.ResponseWriter, req *http.Request) {
 	_, err := queries.DeleteUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusNotFound).Msg("user not found")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusNotFound).Msg("user not found")
 			http.Error(res, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		} else {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to delete user by id")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to delete user by id")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		return
@@ -161,7 +161,7 @@ func updateTimeZoneHandler(res http.ResponseWriter, req *http.Request) {
 
 	err := decodeAndValidateJSONBody(req, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Msg("invalid request body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Msg("invalid request body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -172,6 +172,7 @@ func updateTimeZoneHandler(res http.ResponseWriter, req *http.Request) {
 		logWithCtx.
 			Error().
 			Err(err).
+			Caller().
 			Int("status_code", http.StatusInternalServerError).
 			Str("user_id", userID).
 			Str("time_zone", string(body.TimeZone)).

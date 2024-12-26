@@ -35,7 +35,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 
 	if yearString == "" || monthString == "" {
 		err := errors.New("missing required query params")
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Send()
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Send()
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -43,7 +43,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	year, err := strconv.Atoi(yearString)
 	if err != nil {
 		err := errors.New("invalid year query params")
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Send()
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Send()
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -51,7 +51,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	month, err := strconv.Atoi(monthString)
 	if err != nil {
 		err := errors.New("invalid month query params")
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Send()
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Send()
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -64,7 +64,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get this month prayers")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get this month prayers")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -73,7 +73,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	for i, v := range thisMonthPrayers {
 		prayerID, err := v.ID.Value()
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get prayer UUID from pgtype.UUID")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get prayer UUID from pgtype.UUID")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -87,7 +87,7 @@ func getPrayersHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -186,14 +186,14 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 
 	location, err := time.LoadLocation(userTimeZone)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to load time zone location")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	usedPrayers, err := getUsedPrayers(ctx, location)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get used prayers")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get used prayers")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -212,7 +212,7 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get today prayers")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get today prayers")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -226,7 +226,7 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 		})
 
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to bulk insert today prayers")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to bulk insert today prayers")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -245,7 +245,7 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 
 			prayerID, err := p.ID.Value()
 			if err != nil {
-				logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get prayer UUID from pgtype.UUID")
+				logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get prayer UUID from pgtype.UUID")
 				http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
@@ -262,7 +262,7 @@ func getTodayPrayersHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: &respBody})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -284,21 +284,21 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 
 	err := decodeAndValidateJSONBody(req, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusBadRequest).Msg("invalid request body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusBadRequest).Msg("invalid request body")
 		http.Error(res, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	prayerCalendar, err := prayer.GetPrayerCalendar(ctx, body.TimeZone)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get prayer calendar")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get prayer calendar")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	location, err := time.LoadLocation(string(body.TimeZone))
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to load time zone location")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -315,7 +315,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	if isPenultimateDayPrayer && isCheckedAtLastDay && body.PrayerName != prayer.IsyaPrayerName {
 		usedPrayers, err = prayer.GetPenultimateDayPrayer(ctx, body.TimeZone)
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get penultimate day prayer")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get penultimate day prayer")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -323,7 +323,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 		isLastDayPrayer && body.PrayerName != prayer.IsyaPrayerName {
 		usedPrayers, err = prayer.GetLastDayPrayer(ctx, body.TimeZone)
 		if err != nil {
-			logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to get last day prayer")
+			logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to get last day prayer")
 			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -360,7 +360,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	prayerID := chi.URLParam(req, "prayerID")
 	prayerIDBytes, err := uuid.Parse(prayerID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to parse prayer uuid string to bytes")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to parse prayer uuid string to bytes")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -368,7 +368,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		errMsg := "failed to begin tx to update prayer status and/or delete last prayer reminder"
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg(errMsg)
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg(errMsg)
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -380,7 +380,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to update prayer status")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to update prayer status")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -397,6 +397,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusInternalServerError).
 				Str("task_id", asynqTaskID).
 				Msg("failed to delete last prayer reminder")
@@ -412,6 +413,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 		logWithCtx.
 			Error().
 			Err(err).
+			Caller().
 			Int("status_code", http.StatusInternalServerError).
 			Str("task_id", asynqTaskID).
 			Msg(errMsg)
@@ -428,7 +430,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

@@ -230,7 +230,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 
 	bytes, err := io.ReadAll(req.Body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to read tripay webhook request")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to read tripay webhook request")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -242,7 +242,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 	signature := hex.EncodeToString(hash.Sum(nil))
 	tripaySignature := req.Header.Get("X-Callback-Signature")
 	if signature != tripaySignature {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusForbidden).Msg("invalid signature")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusForbidden).Msg("invalid signature")
 		http.Error(res, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
@@ -250,7 +250,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 	var body tripayWebhookRequest
 	err = json.Unmarshal(bytes, &body)
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to unmarshal tripay webhook request")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to unmarshal tripay webhook request")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -260,6 +260,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 		logWithCtx.
 			Error().
 			Err(err).
+			Caller().
 			Int("status_code", http.StatusInternalServerError).
 			Str("transaction_id", body.MerchantRef).
 			Msg("failed to parse merchant ref uuid string to bytes")
@@ -275,6 +276,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusInternalServerError).
 				Str("transaction_id", body.MerchantRef).
 				Msg("failed to get transaction with subscription plan by id")
@@ -295,6 +297,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusInternalServerError).
 				Str("transaction_id", body.MerchantRef).
 				Str("user_id", tx.UserID).
@@ -313,6 +316,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 				logWithCtx.
 					Error().
 					Err(err).
+					Caller().
 					Int("status_code", http.StatusNotFound).
 					Str("merchant_ref", body.MerchantRef).
 					Msg("transaction not found")
@@ -322,6 +326,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 				logWithCtx.
 					Error().
 					Err(err).
+					Caller().
 					Int("status_code", http.StatusInternalServerError).
 					Str("transaction_id", body.MerchantRef).
 					Msg("failed to get transaction by id")
@@ -344,6 +349,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusBadRequest).
 				Str("transaction_id", body.MerchantRef).
 				Str("transaction_status", body.Status).
@@ -360,6 +366,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 			logWithCtx.
 				Error().
 				Err(err).
+				Caller().
 				Int("status_code", http.StatusInternalServerError).
 				Str("transaction_id", body.MerchantRef).
 				Str("transaction_status", body.Status).
@@ -379,7 +386,7 @@ func tripayWebhookHandler(res http.ResponseWriter, req *http.Request) {
 
 	err = sendJSONSuccessResponse(res, successResponseParams{StatusCode: http.StatusOK, Data: respBody})
 	if err != nil {
-		logWithCtx.Error().Err(err).Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
+		logWithCtx.Error().Err(err).Caller().Int("status_code", http.StatusInternalServerError).Msg("failed to send successful response body")
 		http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 	logWithCtx.Info().Int("status_code", http.StatusOK).Dur("response_time", time.Since(start)).Msg("request completed")

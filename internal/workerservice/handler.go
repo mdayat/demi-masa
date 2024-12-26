@@ -13,7 +13,6 @@ import (
 	"github.com/odemimasa/backend/internal/prayer"
 	"github.com/odemimasa/backend/internal/task"
 	"github.com/odemimasa/backend/repository"
-	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
@@ -24,7 +23,7 @@ func handleUserDowngrade(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.UserDowngradePayload
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal user downgrade task payload")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to unmarshal user downgrade task payload")
 		return err
 	}
 
@@ -34,7 +33,7 @@ func handleUserDowngrade(ctx context.Context, asynqTask *asynq.Task) error {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to update user subscription to FREE")
+		logWithCtx.Error().Err(err).Caller().Str("user_id", payload.UserID).Msg("failed to update user subscription to FREE")
 		return err
 	}
 
@@ -47,25 +46,26 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.PrayerReminderPayload
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal prayer reminder task payload")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to unmarshal prayer reminder task payload")
 		return err
 	}
 
 	user, err := queries.GetUserPrayerByID(ctx, payload.UserID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to get user prayer by id")
+		logWithCtx.Error().Err(err).Caller().Str("user_id", payload.UserID).Msg("failed to get user prayer by id")
 		return err
 	}
 
 	location, err := time.LoadLocation(string(user.TimeZone.IndonesiaTimeZone))
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to load time zone location")
 		return err
 	}
 
 	prayerCalendar, err := prayer.GetPrayerCalendar(ctx, user.TimeZone.IndonesiaTimeZone)
 	if err != nil {
-		return errors.Wrap(err, "failed to get prayer calendar")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to get prayer calendar")
+		return err
 	}
 
 	prayerTime := time.Unix(payload.PrayerUnixTime, 0).In(location)
@@ -76,7 +76,8 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	if payload.IsLastDay && payload.PrayerName != prayer.IsyaPrayerName {
 		lastDayPrayer, err = prayer.GetLastDayPrayer(ctx, user.TimeZone.IndonesiaTimeZone)
 		if err != nil {
-			return errors.Wrap(err, "failed to get last day prayer")
+			logWithCtx.Error().Err(err).Caller().Msg("failed to get last day prayer")
+			return err
 		}
 	}
 
@@ -107,7 +108,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	)
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule prayer reminder")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to schedule prayer reminder")
 		return err
 	}
 
@@ -141,7 +142,8 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		)
 
 		if err != nil {
-			return errors.Wrap(err, "failed to schedule last prayer reminder")
+			logWithCtx.Error().Err(err).Caller().Msg("failed to schedule last prayer reminder")
+			return err
 		}
 	}
 
@@ -156,7 +158,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 
 	_, err = twilioClient.Api.CreateMessage(&params)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("phone_number", user.PhoneNumber.String).Msg("failed to send prayer reminder")
+		logWithCtx.Error().Err(err).Caller().Str("phone_number", user.PhoneNumber.String).Msg("failed to send prayer reminder")
 		return err
 	}
 	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
@@ -169,13 +171,13 @@ func handleLastPrayerReminder(ctx context.Context, asynqTask *asynq.Task) error 
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.PrayerReminderPayload
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal last prayer reminder task payload")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to unmarshal last prayer reminder task payload")
 		return err
 	}
 
 	userPhone, err := queries.GetUserPhoneByID(ctx, payload.UserID)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("user_id", payload.UserID).Msg("failed to get user phone by id")
+		logWithCtx.Error().Err(err).Caller().Str("user_id", payload.UserID).Msg("failed to get user phone by id")
 		return err
 	}
 
@@ -190,7 +192,7 @@ func handleLastPrayerReminder(ctx context.Context, asynqTask *asynq.Task) error 
 
 	_, err = twilioClient.Api.CreateMessage(&params)
 	if err != nil {
-		logWithCtx.Error().Err(err).Str("phone_number", userPhone.String).Msg("failed to send last prayer reminder")
+		logWithCtx.Error().Err(err).Caller().Str("phone_number", userPhone.String).Msg("failed to send last prayer reminder")
 		return err
 	}
 	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
@@ -203,13 +205,13 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	var payload task.PrayerRenewalTask
 	if err := json.Unmarshal(asynqTask.Payload(), &payload); err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to unmarshal prayer renewal task payload")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to unmarshal prayer renewal task payload")
 		return err
 	}
 
 	location, err := time.LoadLocation(string(payload.TimeZone))
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to load time zone location")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to load time zone location")
 		return err
 	}
 
@@ -217,7 +219,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	year := now.Year()
 	month, err := strconv.Atoi(fmt.Sprintf("%d", now.Month()))
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to convert string to integer")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to convert string to integer")
 		return err
 	}
 
@@ -237,37 +239,41 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 
 	unparsedPrayerCalendar, err := prayer.GetAladhanPrayerCalendar(URL)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to get aladhan prayer calendar")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to get aladhan prayer calendar")
 		return err
 	}
 
 	parsedPrayerCalendar, err := prayer.ParseAladhanPrayerCalendar(unparsedPrayerCalendar, location, payload.TimeZone)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to parse aladhan prayer calendar")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to parse aladhan prayer calendar")
 		return err
 	}
 
 	parsedPrayerCalendarJSON, err := json.Marshal(parsedPrayerCalendar)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal parsed aladhan prayer calendar")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to marshal parsed aladhan prayer calendar")
+		return err
 	}
 
 	err = redisClient.Watch(ctx, func(tx *redis.Tx) error {
 		oldPrayerCalendar, err := prayer.GetPrayerCalendar(ctx, payload.TimeZone)
 		if err != nil {
-			return errors.Wrap(err, "failed to get prayer calendar")
+			logWithCtx.Error().Err(err).Caller().Msg("failed to get prayer calendar")
+			return err
 		}
 
 		penultimateDayPrayer := parsedPrayerCalendar[len(parsedPrayerCalendar)-2]
 		penultimateDayPrayerJSON, err := json.Marshal(penultimateDayPrayer)
 		if err != nil {
-			return errors.Wrap(err, "failed to marshal penultimate day prayer of old prayer calendar")
+			logWithCtx.Error().Err(err).Caller().Msg("failed to marshal penultimate day prayer of old prayer calendar")
+			return err
 		}
 
 		lastDayPrayer := oldPrayerCalendar[len(oldPrayerCalendar)-1]
 		lastDayPrayerJSON, err := json.Marshal(lastDayPrayer)
 		if err != nil {
-			return errors.Wrap(err, "failed to marshal last day prayer of old prayer calendar")
+			logWithCtx.Error().Err(err).Caller().Msg("failed to marshal last day prayer of old prayer calendar")
+			return err
 		}
 
 		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
@@ -288,7 +294,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	)
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule prayer renewal")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to schedule prayer renewal")
 		return err
 	}
 	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
@@ -301,13 +307,13 @@ func handleTaskRemoval(ctx context.Context, _ *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	err := queries.RemoveCheckedTask(ctx)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to delete checked tasks")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to delete checked tasks")
 		return err
 	}
 
 	err = task.ScheduleTaskRemovalTask()
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule task removal task")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to schedule task removal task")
 		return err
 	}
 	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
@@ -320,7 +326,8 @@ func handlePrayerUpdate(ctx context.Context, _ *asynq.Task) error {
 	logWithCtx := log.Ctx(ctx).With().Logger()
 	location, err := time.LoadLocation(string(repository.IndonesiaTimeZoneAsiaJakarta))
 	if err != nil {
-		return errors.Wrap(err, "failed to load time zone location")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to load time zone location")
+		return err
 	}
 
 	now := time.Now().In(location)
@@ -331,13 +338,13 @@ func handlePrayerUpdate(ctx context.Context, _ *asynq.Task) error {
 	})
 
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to update prayers status to missed")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to update prayers status to missed")
 		return err
 	}
 
 	err = prayer.SchedulePrayerUpdateTask(&now)
 	if err != nil {
-		logWithCtx.Error().Err(err).Msg("failed to schedule prayer update task")
+		logWithCtx.Error().Err(err).Caller().Msg("failed to schedule prayer update task")
 		return err
 	}
 	logWithCtx.Info().Dur("response_time", time.Since(start)).Msg("task completed")
