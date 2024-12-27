@@ -1,20 +1,13 @@
-import { lazy } from "solid-js";
-import { Route, Router } from "@solidjs/router";
-import Login from "./pages/Login";
 import { Toaster } from "@components/solidui/Toast";
+import type { ParentComponent } from "solid-js";
 
-const NotFound = lazy(() =>
-  import("@components/NotFound").then(({ NotFound }) => ({ default: NotFound }))
-);
-
-function App() {
+const App: ParentComponent = (props) => {
   return (
-    <Router>
+    <>
       <Toaster />
-      <Route path="/login" component={Login} />
-      <Route path="**" component={NotFound} />
-    </Router>
+      {props.children}
+    </>
   );
-}
+};
 
 export default App;

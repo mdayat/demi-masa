@@ -11,6 +11,7 @@ export default defineConfig({
   build: {
     target: "esnext",
     outDir: ".solid",
+    assetsDir: "./",
   },
   resolve: {
     extensions: [".ts", ".tsx"],

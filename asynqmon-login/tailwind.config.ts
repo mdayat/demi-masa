@@ -3,7 +3,6 @@ import type { Config } from "tailwindcss";
 import tailwindCSSAnimate from "tailwindcss-animate";
 
 const config: Config = {
-  darkMode: ["variant", [".dark &", '[data-kb-theme="dark"] &']],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     container: {
