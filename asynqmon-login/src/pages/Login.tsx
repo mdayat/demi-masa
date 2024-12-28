@@ -22,8 +22,8 @@ function Login() {
       const resp = await fetch(`${VITE_BACKEND_URL}/login`, {
         method: "POST",
         body: JSON.stringify({
-          id_token: userCredential.user.getIdToken(true),
-          email: userCredential.user.email,
+          id_token: await userCredential.user.getIdToken(true),
+          email: userCredential.user.email ?? "",
         }),
         headers: { "Content-Type": "application/json" },
       });
@@ -36,7 +36,7 @@ function Login() {
         });
 
         setTimeout(() => {
-          window.location.replace(window.location.origin + "/dashboard");
+          window.location.replace(window.location.origin + "/monitoring");
         }, 3000);
       } else if (resp.status === 400) {
         throw new Error("invalid request body");
