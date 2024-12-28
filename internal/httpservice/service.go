@@ -78,5 +78,6 @@ func New() *chi.Mux {
 
 		r.Get("/subscription-plans", getSubsPlansHandler)
 	})
+
 	return router
 }

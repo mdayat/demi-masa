@@ -13,8 +13,14 @@ build-app: vet
 build-worker: vet
 	go build -o dist/worker cmd/workerservice/main.go
 
+build-asynqmon: vet
+	go build -o dist/asynqmon cmd/asynqmon/main.go
+
 run-app:
 	go run cmd/httpservice/main.go
 
 run-worker:
 	go run cmd/workerservice/main.go
+
+run-asynqmon:
+	go run cmd/asynqmon/main.go
