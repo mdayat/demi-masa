@@ -27,5 +27,21 @@ func InitApp() *chi.Mux {
 	router.Use(cors.Handler(options))
 	router.Use(middleware.Heartbeat("/ping"))
 
+	router.Post("/login", loginHandler)
+
+	router.Group(func(r chi.Router) {
+		r.Use(authenticate)
+
+		r.Post("/otp/generation", generateOTPHandler)
+		r.Post("/otp/verification", verifyOTPHandler)
+
+		r.Get("/tasks", getTasksHandler)
+		r.Post("/tasks", createTaskHandler)
+		r.Put("/tasks/{taskID}", updateTaskHandler)
+		r.Delete("/tasks/{taskID}", deleteTaskHandler)
+
+		r.Get("/subscription-plans", getSubsPlansHandler)
+	})
+
 	return router
 }
