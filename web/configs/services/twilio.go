@@ -14,7 +14,3 @@ func InitTwilio(accountSID, authToken string) {
 		Password: authToken,
 	})
 }
-
-func GetTwilio() *twilio.RestClient {
-	return TwilioClient
-}
