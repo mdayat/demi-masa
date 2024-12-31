@@ -7,11 +7,10 @@ import (
 )
 
 var (
-	DATABASE_URL           string
-	TWILIO_ACCOUNT_SID     string
-	TWILIO_AUTH_TOKEN      string
-	TWILIO_WHATSAPP_SENDER string
-	REDIS_URL              string
+	DATABASE_URL       string
+	TWILIO_ACCOUNT_SID string
+	TWILIO_AUTH_TOKEN  string
+	REDIS_URL          string
 )
 
 func Init() error {
@@ -23,7 +22,6 @@ func Init() error {
 	DATABASE_URL = os.Getenv("DATABASE_URL")
 	TWILIO_ACCOUNT_SID = os.Getenv("TWILIO_ACCOUNT_SID")
 	TWILIO_AUTH_TOKEN = os.Getenv("TWILIO_AUTH_TOKEN")
-	TWILIO_WHATSAPP_SENDER = os.Getenv("TWILIO_WHATSAPP_SENDER")
 	REDIS_URL = os.Getenv("REDIS_URL")
 
 	return nil
