@@ -387,7 +387,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	userID := fmt.Sprintf("%s", ctx.Value("userID"))
-	asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName)
+	asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName, prayerTime.Day())
 
 	if body.AccountType == repository.AccountTypePREMIUM {
 		err := services.AsynqInspector.DeleteTask(task.DefaultQueue, asynqTaskID)

@@ -38,23 +38,23 @@ func deleteUserHandler(res http.ResponseWriter, req *http.Request) {
 	logWithCtx.Info().Int("status_code", http.StatusOK).Dur("response_time", time.Since(start)).Msg("request completed")
 }
 
-func addUserToTaskQueue(ctx context.Context) (*prayer.Prayer, error) {
+func addUserToTaskQueue(ctx context.Context) (nextPrayer prayer.Prayer, nextPrayerTime time.Time, err error) {
 	timeZone := fmt.Sprintf("%s", ctx.Value("time_zone"))
 	userID := fmt.Sprintf("%s", ctx.Value("userID"))
 
 	prayerCalendar, err := prayer.GetPrayerCalendar(ctx, services.RedisClient, timeZone)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get prayer calendar")
+		return nextPrayer, nextPrayerTime, errors.Wrap(err, "failed to get prayer calendar")
 	}
 
 	lastDayPrayer, err := prayer.GetLastDayPrayer(ctx, services.RedisClient, timeZone)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get last day prayer")
+		return nextPrayer, nextPrayerTime, errors.Wrap(err, "failed to get last day prayer")
 	}
 
 	location, err := time.LoadLocation(timeZone)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load time zone location")
+		return nextPrayer, nextPrayerTime, errors.Wrap(err, "failed to load time zone location")
 	}
 
 	now := time.Now().In(location)
@@ -75,7 +75,6 @@ func addUserToTaskQueue(ctx context.Context) (*prayer.Prayer, error) {
 		isNextPrayerLastDay = true
 	}
 
-	var nextPrayer prayer.Prayer
 	if isLastDay && currentUnixTime < isyaPrayer.UnixTime {
 		nextPrayer = prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentUnixTime)
 	} else {
@@ -86,23 +85,26 @@ func addUserToTaskQueue(ctx context.Context) (*prayer.Prayer, error) {
 		nextPrayer = prayer.GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
 	}
 
+	nextPrayerTime = time.Unix(nextPrayer.UnixTime, 0).In(location)
 	asynqTask, err := task.NewPrayerReminderTask(task.PrayerReminderPayload{
 		UserID:         userID,
 		PrayerName:     nextPrayer.Name,
 		PrayerUnixTime: nextPrayer.UnixTime,
 		IsLastDay:      isNextPrayerLastDay,
+		Day:            nextPrayerTime.Day(),
 	})
+
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create prayer reminder task")
+		return nextPrayer, nextPrayerTime, errors.Wrap(err, "failed to create prayer reminder task")
 	}
 
 	duration := time.Duration(nextPrayer.UnixTime-currentUnixTime) * time.Second
 	_, err = services.AsynqClient.Enqueue(asynqTask, asynq.ProcessIn(duration))
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to enqueue prayer reminder task")
+		return nextPrayer, nextPrayerTime, errors.Wrap(err, "failed to enqueue prayer reminder task")
 	}
 
-	return &nextPrayer, nil
+	return nextPrayer, nextPrayerTime, nil
 }
 
 func updateTimeZone(ctx context.Context, userID string) error {
@@ -126,9 +128,11 @@ func updateTimeZone(ctx context.Context, userID string) error {
 		return errors.Wrap(err, "failed to update user time zone")
 	}
 
-	var nextPrayer *prayer.Prayer
+	var nextPrayer prayer.Prayer
+	var nextPrayerTime time.Time
+
 	if userTimeZone.Valid == false {
-		nextPrayer, err = addUserToTaskQueue(ctx)
+		nextPrayer, nextPrayerTime, err = addUserToTaskQueue(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to add user to task queue")
 		}
@@ -141,7 +145,7 @@ func updateTimeZone(ctx context.Context, userID string) error {
 
 	if err != nil && userTimeZone.Valid == false {
 		return retry.Do(func() error {
-			asynqTaskID := task.PrayerReminderTaskID(userID, nextPrayer.Name)
+			asynqTaskID := task.PrayerReminderTaskID(userID, nextPrayer.Name, nextPrayerTime.Day())
 			err = services.AsynqInspector.DeleteTask(task.DefaultQueue, asynqTaskID)
 			if err != nil {
 				return errors.Wrap(err, "failed to delete prayer reminder")
