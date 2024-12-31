@@ -432,38 +432,6 @@ func (q *Queries) GetUserByPhoneNumber(ctx context.Context, phoneNumber pgtype.T
 	return i, err
 }
 
-const getUserPhoneByID = `-- name: GetUserPhoneByID :one
-SELECT u.phone_number FROM "user" u WHERE u.id = $1
-`
-
-func (q *Queries) GetUserPhoneByID(ctx context.Context, id string) (pgtype.Text, error) {
-	row := q.db.QueryRow(ctx, getUserPhoneByID, id)
-	var phone_number pgtype.Text
-	err := row.Scan(&phone_number)
-	return phone_number, err
-}
-
-const getUserPrayerByID = `-- name: GetUserPrayerByID :one
-SELECT
-  u.phone_number,
-  u.account_type,
-  u.time_zone
-FROM "user" u WHERE u.id = $1
-`
-
-type GetUserPrayerByIDRow struct {
-	PhoneNumber pgtype.Text           `json:"phone_number"`
-	AccountType AccountType           `json:"account_type"`
-	TimeZone    NullIndonesiaTimeZone `json:"time_zone"`
-}
-
-func (q *Queries) GetUserPrayerByID(ctx context.Context, id string) (GetUserPrayerByIDRow, error) {
-	row := q.db.QueryRow(ctx, getUserPrayerByID, id)
-	var i GetUserPrayerByIDRow
-	err := row.Scan(&i.PhoneNumber, &i.AccountType, &i.TimeZone)
-	return i, err
-}
-
 const getUserSubsByID = `-- name: GetUserSubsByID :one
 SELECT u.account_type FROM "user" u WHERE u.id = $1
 `
@@ -486,62 +454,12 @@ func (q *Queries) GetUserTimeZoneByID(ctx context.Context, id string) (NullIndon
 	return time_zone, err
 }
 
-const getUsersByTimeZone = `-- name: GetUsersByTimeZone :many
-SELECT
-  u.id,
-  u.phone_number,
-  u.account_type,
-  u.time_zone
-FROM "user" u WHERE u.time_zone = $1
-`
-
-type GetUsersByTimeZoneRow struct {
-	ID          string                `json:"id"`
-	PhoneNumber pgtype.Text           `json:"phone_number"`
-	AccountType AccountType           `json:"account_type"`
-	TimeZone    NullIndonesiaTimeZone `json:"time_zone"`
-}
-
-func (q *Queries) GetUsersByTimeZone(ctx context.Context, timeZone NullIndonesiaTimeZone) ([]GetUsersByTimeZoneRow, error) {
-	rows, err := q.db.Query(ctx, getUsersByTimeZone, timeZone)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetUsersByTimeZoneRow
-	for rows.Next() {
-		var i GetUsersByTimeZoneRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.PhoneNumber,
-			&i.AccountType,
-			&i.TimeZone,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const incrementCouponQuota = `-- name: IncrementCouponQuota :exec
 UPDATE coupon SET quota = quota + 1 WHERE code = $1
 `
 
 func (q *Queries) IncrementCouponQuota(ctx context.Context, code string) error {
 	_, err := q.db.Exec(ctx, incrementCouponQuota, code)
-	return err
-}
-
-const removeCheckedTask = `-- name: RemoveCheckedTask :exec
-DELETE FROM task WHERE checked = TRUE
-`
-
-func (q *Queries) RemoveCheckedTask(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, removeCheckedTask)
 	return err
 }
 
@@ -556,21 +474,6 @@ type UpdatePrayerStatusParams struct {
 
 func (q *Queries) UpdatePrayerStatus(ctx context.Context, arg UpdatePrayerStatusParams) error {
 	_, err := q.db.Exec(ctx, updatePrayerStatus, arg.ID, arg.Status)
-	return err
-}
-
-const updatePrayersToMissed = `-- name: UpdatePrayersToMissed :exec
-UPDATE prayer SET status = 'MISSED' WHERE status IS NULL AND (day < $1 OR month < $2 OR year < $3)
-`
-
-type UpdatePrayersToMissedParams struct {
-	Day   int16 `json:"day"`
-	Month int16 `json:"month"`
-	Year  int16 `json:"year"`
-}
-
-func (q *Queries) UpdatePrayersToMissed(ctx context.Context, arg UpdatePrayersToMissedParams) error {
-	_, err := q.db.Exec(ctx, updatePrayersToMissed, arg.Day, arg.Month, arg.Year)
 	return err
 }
 

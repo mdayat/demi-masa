@@ -1,26 +1,8 @@
 -- name: GetUserByID :one
 SELECT * FROM "user" WHERE id = $1;
 
--- name: GetUserPrayerByID :one
-SELECT
-  u.phone_number,
-  u.account_type,
-  u.time_zone
-FROM "user" u WHERE u.id = $1;
-
 -- name: GetUserByPhoneNumber :one
 SELECT * FROM "user" WHERE phone_number = $1;
-
--- name: GetUsersByTimeZone :many
-SELECT
-  u.id,
-  u.phone_number,
-  u.account_type,
-  u.time_zone
-FROM "user" u WHERE u.time_zone = $1;
-
--- name: GetUserPhoneByID :one
-SELECT u.phone_number FROM "user" u WHERE u.id = $1;
 
 -- name: GetUserTimeZoneByID :one
 SELECT u.time_zone FROM "user" u WHERE u.id = $1;
@@ -97,9 +79,6 @@ INSERT INTO task (user_id, name, description) VALUES ($1, $2, $3) RETURNING id, 
 -- name: UpdateTaskByID :exec
 UPDATE task SET name = $2, description = $3, checked = $4 WHERE id = $1;
 
--- name: RemoveCheckedTask :exec
-DELETE FROM task WHERE checked = TRUE;
-
 -- name: DeleteTaskByID :exec
 DELETE FROM task WHERE id = $1;
 
@@ -123,6 +102,3 @@ VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: UpdatePrayerStatus :exec
 UPDATE prayer SET status = $2 WHERE id = $1;
-
--- name: UpdatePrayersToMissed :exec
-UPDATE prayer SET status = 'MISSED' WHERE status IS NULL AND (day < $1 OR month < $2 OR year < $3);
