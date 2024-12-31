@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+    networks:
+      - demi_masa
+    logging:
+      driver: fluentd
+      options:
+        tag: web-service
+        fluentd-sub-second-precision: "true"
+
+networks:
+  demi_masa:
+    external: true
