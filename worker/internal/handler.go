@@ -90,7 +90,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	}
 
 	prayerDay := prayerTime.Day()
-	if isLastDay && payload.PrayerName == prayer.IsyaPrayerName {
+	if payload.IsLastDay && payload.PrayerName == prayer.IsyaPrayerName {
 		prayerDay = 1
 	}
 
@@ -98,11 +98,13 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	now := time.Now().In(location)
 	nowUnixTime := now.Unix()
 
+	nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0).In(location)
 	newAsynqTask, err := task.NewPrayerReminderTask(task.PrayerReminderPayload{
 		UserID:         payload.UserID,
 		PrayerName:     nextPrayer.Name,
 		PrayerUnixTime: nextPrayer.UnixTime,
 		IsLastDay:      isNextPrayerLastDay,
+		Day:            nextPrayerTime.Day(),
 	})
 
 	if err != nil {
@@ -110,8 +112,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	}
 
-	duration := time.Duration(nextPrayer.UnixTime-nowUnixTime) * time.Second
-	_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(duration))
+	_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(nextPrayerTime.Sub(now)))
 	if err != nil {
 		logWithCtx.Error().Err(err).Caller().Msg("failed to enqueue prayer reminder task")
 		return err
@@ -138,6 +139,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		newAsynqTask, err = task.NewLastPrayerReminderTask(task.LastPrayerReminderPayload{
 			UserID:     payload.UserID,
 			PrayerName: payload.PrayerName,
+			Day:        prayerTime.Day(),
 		})
 
 		if err != nil {

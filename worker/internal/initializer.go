@@ -140,19 +140,20 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 			nextPrayer = prayer.GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
 		}
 
+		nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0).In(location)
 		newAsynqTask, err := task.NewPrayerReminderTask(task.PrayerReminderPayload{
 			UserID:         user.ID,
 			PrayerName:     nextPrayer.Name,
 			PrayerUnixTime: nextPrayer.UnixTime,
 			IsLastDay:      isNextPrayerLastDay,
+			Day:            nextPrayerTime.Day(),
 		})
 
 		if err != nil {
 			return errors.Wrap(err, "failed to create prayer reminder task")
 		}
 
-		duration := time.Duration(nextPrayer.UnixTime-currentUnixTime) * time.Second
-		_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(duration))
+		_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(nextPrayerTime.Sub(now)))
 		if err != nil {
 			return errors.Wrap(err, "failed to enqueue prayer reminder task")
 		}

@@ -49,8 +49,8 @@ github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovk
 github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=
 github.com/mattn/go-isatty v0.0.19 h1:JITubQf0MOLdlGRuRq+jtsDlekdYPia9ZFsB8h/APPA=
 github.com/mattn/go-isatty v0.0.19/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
-github.com/mdayat/demi-masa/pkg v0.0.0-20241231114328-274386670631 h1:rSG0SqfoqUYT3q09htemk2fjcfPoq5z8WEFtZdsNW3s=
-github.com/mdayat/demi-masa/pkg v0.0.0-20241231114328-274386670631/go.mod h1:ultcLRZbrmedS5jPshgvFnChhuWU5pXiLOBkJbupi1M=
+github.com/mdayat/demi-masa/pkg v0.0.0-20241231115346-039248064e06 h1:FykVVw3kzD8U0yFqFYPlw3puipeX+WOvPcYqFL8XgT0=
+github.com/mdayat/demi-masa/pkg v0.0.0-20241231115346-039248064e06/go.mod h1:ultcLRZbrmedS5jPshgvFnChhuWU5pXiLOBkJbupi1M=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
