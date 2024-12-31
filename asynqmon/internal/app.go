@@ -46,7 +46,7 @@ func InitApp() *chi.Mux {
 		})
 		r.Handle(h.RootPath()+"*", h)
 
-		fs := http.FileServer(http.Dir("asynqmon-login/.solid"))
+		fs := http.FileServer(http.Dir("web/.solid"))
 		r.Handle("/*", fs)
 	})
 
