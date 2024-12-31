@@ -44,10 +44,11 @@ type PrayerReminderPayload struct {
 	PrayerName     string
 	PrayerUnixTime int64
 	IsLastDay      bool
+	Day            int
 }
 
-func PrayerReminderTaskID(userID string, prayerName string) string {
-	return fmt.Sprintf("%s:%s", userID, prayerName)
+func PrayerReminderTaskID(userID string, prayerName string, day int) string {
+	return fmt.Sprintf("%s:%s:%d", userID, prayerName, day)
 }
 
 func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
@@ -59,7 +60,7 @@ func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
 	return asynq.NewTask(
 		TypePrayerReminder,
 		bytes,
-		asynq.TaskID(PrayerReminderTaskID(payload.UserID, payload.PrayerName)),
+		asynq.TaskID(PrayerReminderTaskID(payload.UserID, payload.PrayerName, payload.Day)),
 		asynq.MaxRetry(3),
 	), nil
 }
@@ -67,10 +68,11 @@ func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
 type LastPrayerReminderPayload struct {
 	UserID     string
 	PrayerName string
+	Day        int
 }
 
-func LastPrayerReminderTaskID(userID string, prayerName string) string {
-	return fmt.Sprintf("%s:%s:last", userID, prayerName)
+func LastPrayerReminderTaskID(userID string, prayerName string, day int) string {
+	return fmt.Sprintf("%s:%s:%d:last", userID, prayerName, day)
 }
 
 func NewLastPrayerReminderTask(payload LastPrayerReminderPayload) (*asynq.Task, error) {
@@ -82,7 +84,7 @@ func NewLastPrayerReminderTask(payload LastPrayerReminderPayload) (*asynq.Task, 
 	return asynq.NewTask(
 		TypeLastPrayerReminder,
 		bytes,
-		asynq.TaskID(LastPrayerReminderTaskID(payload.UserID, payload.PrayerName)),
+		asynq.TaskID(LastPrayerReminderTaskID(payload.UserID, payload.PrayerName, payload.Day)),
 		asynq.MaxRetry(3),
 	), nil
 }
