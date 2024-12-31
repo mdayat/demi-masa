@@ -301,7 +301,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 	}
 
 	numOfDays := len(parsedPrayerCalendar)
-	renewalDate := time.Date(now.Year(), now.Month(), numOfDays, 0, 0, 0, 0, now.Location())
+	renewalDate := time.Date(year, time.Month(month), numOfDays, 0, 0, 0, 0, now.Location())
 
 	_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(renewalDate.Sub(now)))
 	if err != nil {
