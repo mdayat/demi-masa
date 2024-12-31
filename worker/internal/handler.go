@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -240,14 +239,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 		month++
 	}
 
-	URL := fmt.Sprintf(
-		"https://api.aladhan.com/v1/calendarByCity/%d/%d?country=Indonesia&city=%s",
-		year,
-		month,
-		strings.Split(string(payload.TimeZone), "/")[1],
-	)
-
-	unparsedPrayerCalendar, err := prayer.GetAladhanPrayerCalendar(URL)
+	unparsedPrayerCalendar, err := prayer.GetAladhanPrayerCalendar(makeAladhanURL(year, month, payload.TimeZone))
 	if err != nil {
 		logWithCtx.Error().Err(err).Caller().Msg("failed to get aladhan prayer calendar")
 		return err

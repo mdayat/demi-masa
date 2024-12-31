@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,18 +17,25 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
-	now := time.Now().In(location)
-	timeZone := location.String()
-
-	URL := fmt.Sprintf(
+func makeAladhanURL(year, month int, timeZone string) string {
+	return fmt.Sprintf(
 		"https://api.aladhan.com/v1/calendarByCity/%d/%d?country=Indonesia&city=%s",
-		now.Year(),
-		now.Month(),
+		year,
+		month,
 		strings.Split(timeZone, "/")[1],
 	)
+}
 
-	prayerCalendar, err := prayer.GetAladhanPrayerCalendar(URL)
+func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
+	now := time.Now().In(location)
+	year := now.Year()
+	month, err := strconv.Atoi(fmt.Sprintf("%d", now.Month()))
+	if err != nil {
+		return errors.Wrap(err, "failed to convert string to integer")
+	}
+
+	timeZone := location.String()
+	prayerCalendar, err := prayer.GetAladhanPrayerCalendar(makeAladhanURL(year, month, timeZone))
 	if err != nil {
 		return errors.Wrap(err, "failed to get aladhan prayer calendar")
 	}
@@ -54,6 +62,31 @@ func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
 		return errors.Wrap(err, "failed to marshal last day prayer of parsed aladhan prayer calendar")
 	}
 
+	isLastDay := prayer.IsLastDay(&now)
+	if isLastDay {
+		if month == 12 {
+			year++
+			month = 1
+		} else {
+			month++
+		}
+
+		prayerCalendar, err = prayer.GetAladhanPrayerCalendar(makeAladhanURL(year, month, timeZone))
+		if err != nil {
+			return errors.Wrap(err, "failed to get aladhan prayer calendar")
+		}
+
+		parsedPrayerCalendar, err = prayer.ParseAladhanPrayerCalendar(prayerCalendar, location)
+		if err != nil {
+			return errors.Wrap(err, "failed to parse aladhan prayer calendar")
+		}
+
+		prayerCalendarJSON, err = json.Marshal(parsedPrayerCalendar)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal parsed aladhan prayer calendar")
+		}
+	}
+
 	err = services.RedisClient.Watch(ctx, func(tx *redis.Tx) error {
 		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.Set(ctx, prayer.MakePrayerCalendarKey(timeZone), prayerCalendarJSON, 0)
@@ -74,7 +107,7 @@ func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
 	}
 
 	numOfDays := len(parsedPrayerCalendar)
-	renewalDate := time.Date(now.Year(), now.Month(), numOfDays, 0, 0, 0, 0, now.Location())
+	renewalDate := time.Date(year, time.Month(month), numOfDays, 0, 0, 0, 0, now.Location())
 
 	_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(renewalDate.Sub(now)))
 	if err != nil {
