@@ -1,6 +1,6 @@
 services:
   worker:
-    build: .
+    image: mdayat/demi-masa-worker:latest
     environment:
       - REDIS_URL=${REDIS_URL}
     networks:

@@ -1,6 +1,6 @@
 services:
   asynqmon:
-    build: .
+    image: mdayat/demi-masa-asynqmon:latest
     ports:
       - "9090:9090"
     environment:
