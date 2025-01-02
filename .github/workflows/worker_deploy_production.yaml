@@ -35,8 +35,8 @@ jobs:
       - name: Build and push Docker images
         run: |
           cd worker
-          docker build -t "${{ secrets.DOCKER_HUB_USERNAME }}"/demi-masa-worker:latest .
-          docker push "${{ secrets.DOCKER_HUB_USERNAME }}"/demi-masa-worker:latest
+          docker build -t "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:latest .
+          docker push "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:latest
 
       - name: Setup SSH
         run: |
