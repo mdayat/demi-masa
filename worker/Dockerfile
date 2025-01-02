@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.23.4-alpine3.21 AS base
+FROM alpine:3.21 AS base-alpine
 WORKDIR /app
 
-FROM base AS build
+FROM golang:1.23.4-alpine3.21 AS base-go
+WORKDIR /app
+
+FROM base-go AS build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY configs configs
@@ -11,7 +14,7 @@ COPY repository repository
 COPY main.go .
 RUN CGO_ENABLED=0 GOOS=linux go build -o worker
 
-FROM base AS final
+FROM base-alpine AS final
 COPY --from=build /app/worker .
 COPY .env .
 ENTRYPOINT ["/app/worker"]
