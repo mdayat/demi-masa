@@ -35,8 +35,10 @@ jobs:
       - name: Build and push Docker images
         run: |
           cd worker
-          docker build -t "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:latest .
-          docker push "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:latest
+          APP_TAG=$(git tag -l --sort=-v:refname "worker*" | head -n 1)
+          APP_TAG=${APP_TAG#"worker/v"}
+          docker build -t "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:$APP_TAG .
+          docker push "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:$APP_TAG
 
       - name: Setup SSH
         run: |

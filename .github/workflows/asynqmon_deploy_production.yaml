@@ -37,8 +37,10 @@ jobs:
       - name: Build and push Docker images
         run: |
           cd asynqmon
-          docker build -t "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-asynqmon:latest .
-          docker push "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-asynqmon:latest
+          APP_TAG=$(git tag -l --sort=-v:refname "asynqmon*" | head -n 1)
+          APP_TAG=${APP_TAG#"asynqmon/v"}
+          docker build -t "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-asynqmon:$APP_TAG .
+          docker push "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-asynqmon:$APP_TAG
 
       - name: Setup SSH
         run: |
