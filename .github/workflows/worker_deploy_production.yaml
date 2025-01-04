@@ -19,8 +19,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Add environment variables and secrets
+      - name: Set APP_TAG
+        id: app_tag_setter
+        run: echo "app_tag=$(git tag -l --sort=-v:refname "worker*" | head -n 1 | sed 's/worker\/v//')" >> $GITHUB_OUTPUT
+
+      - name: Add secrets
         run: echo "${{ secrets.WORKER_ENV_FILE }}" > worker/.env
 
       - name: Login to Docker Hub
@@ -32,23 +38,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker images
+      - name: Build and push Docker image
         run: |
           cd worker
-          APP_TAG=$(git tag -l --sort=-v:refname "worker*" | head -n 1)
-          APP_TAG=${APP_TAG#"worker/v"}
-          docker build -t "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:$APP_TAG .
-          docker push "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:$APP_TAG
-
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_PRIVATE_KEY }}" > ~/.ssh/id_ed25519_vps
-          chmod 600 ~/.ssh/id_ed25519_vps
-          echo -e "Host "${{ secrets.VPS_IP }}"\n\tUser "${{ secrets.VPS_USERNAME }}"\n\tStrictHostKeyChecking no\n\tIdentityFile ~/.ssh/id_ed25519_vps" >> ~/.ssh/config
+          docker build -t "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:${{ steps.app_tag_setter.outputs.app_tag }} .
+          docker push "${{ vars.DOCKERHUB_USERNAME }}"/demi-masa-worker:${{ steps.app_tag_setter.outputs.app_tag }}
 
       - name: Deploy to VPS
-        run: |
-          ssh "${{ secrets.VPS_USERNAME }}"@"${{ secrets.VPS_IP }}" "mkdir -p /app/worker"
-          scp worker/compose.yaml "${{ secrets.VPS_USERNAME }}"@"${{ secrets.VPS_IP }}":/app/worker
-          ssh "${{ secrets.VPS_USERNAME }}"@"${{ secrets.VPS_IP }}" "cd /app/worker && docker compose up -d"
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_PRIVATE_KEY }}
+          script: |
+            export WORKER_IMAGE_TAG=${{ steps.app_tag_setter.outputs.app_tag }}
+            cd /app/worker
+            docker compose down
+            docker compose up -d
