@@ -1,8 +1,7 @@
 services:
   worker:
-    image: mdayat/demi-masa-worker:latest
-    environment:
-      - REDIS_URL=${REDIS_URL}
+    env_file: "../.compose.env"
+    image: mdayat/demi-masa-worker:${WORKER_IMAGE_TAG}
     networks:
       - demi_masa
     logging:

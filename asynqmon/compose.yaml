@@ -1,10 +1,9 @@
 services:
   asynqmon:
-    image: mdayat/demi-masa-asynqmon:latest
+    env_file: "../.compose.env"
+    image: mdayat/demi-masa-asynqmon:${ASYNQMON_IMAGE_TAG}
     ports:
       - "9090:9090"
-    environment:
-      - REDIS_URL=${REDIS_URL}
     networks:
       - demi_masa
     logging:
