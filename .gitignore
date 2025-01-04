@@ -1,6 +1,6 @@
-dist
-.env*
-!.env.example
+*.env
+!.example*.env
 service-account-file.json
 .DS_Store
-.solid
+**/.solid
+**/node_modules
