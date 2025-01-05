@@ -31,11 +31,6 @@ var (
 	SunriseTimeName  = "Sunrise"
 )
 
-type aladhanAPIResp struct {
-	Code int             `json:"code"`
-	Data json.RawMessage `json:"data"`
-}
-
 type aladhanPrayerCalendar struct {
 	Timings struct {
 		Fajr    string `json:"Fajr"`
@@ -50,15 +45,15 @@ type aladhanPrayerCalendar struct {
 	} `json:"date"`
 }
 
-func parsePrayerTime(location *time.Location, timestamp int64, timeValue string) (*time.Time, error) {
-	prayerTime, err := time.ParseInLocation("15:04", strings.Split(timeValue, " ")[0], location)
+func parsePrayerTime(location *time.Location, timestamp int64, timeValue string) (prayerTime time.Time, err error) {
+	prayerTime, err = time.ParseInLocation("15:04", strings.Split(timeValue, " ")[0], location)
 	if err != nil {
-		return nil, err
+		return prayerTime, err
 	}
 
 	now := time.Unix(timestamp, 0).In(location)
 	prayerTime = time.Date(now.Year(), now.Month(), now.Day(), prayerTime.Hour(), prayerTime.Minute(), 0, 0, now.Location())
-	return &prayerTime, nil
+	return prayerTime, nil
 }
 
 func ParseAladhanPrayerCalendar(prayerCalendar []aladhanPrayerCalendar, location *time.Location) (PrayerCalendar, error) {
@@ -153,7 +148,11 @@ func GetAladhanPrayerCalendar(url string) ([]aladhanPrayerCalendar, error) {
 			}
 			defer resp.Body.Close()
 
-			var payload aladhanAPIResp
+			var payload struct {
+				Code int             `json:"code"`
+				Data json.RawMessage `json:"data"`
+			}
+
 			if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 				return nil, errors.Wrap(err, "failed to decode response body")
 			}
@@ -298,13 +297,13 @@ func GetPenultimateDayPrayer(ctx context.Context, redisClient *redis.Client, tim
 	return penultimateDayPrayer, nil
 }
 
-func IsLastDay(currentTime *time.Time) bool {
+func IsLastDay(currentTime time.Time) bool {
 	firstDayNextMonth := time.Date(currentTime.Year(), currentTime.Month()+1, 1, 0, 0, 0, 0, currentTime.Location())
 	lastDayCurrentMonth := firstDayNextMonth.AddDate(0, 0, -1)
 	return currentTime.Day() == lastDayCurrentMonth.Day()
 }
 
-func IsPenultimateDay(currentTime *time.Time) bool {
+func IsPenultimateDay(currentTime time.Time) bool {
 	firstDayNextMonth := time.Date(currentTime.Year(), currentTime.Month()+1, 1, 0, 0, 0, 0, currentTime.Location())
 	penultimateDayCurrentMonth := firstDayNextMonth.AddDate(0, 0, -2)
 	return currentTime.Day() == penultimateDayCurrentMonth.Day()
