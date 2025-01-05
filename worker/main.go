@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/mdayat/demi-masa/worker/configs/env"
 	"github.com/mdayat/demi-masa/worker/configs/services"

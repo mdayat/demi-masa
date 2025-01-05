@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	_ "time/tzdata"
 
 	"github.com/mdayat/demi-masa/web/configs/env"
 	"github.com/mdayat/demi-masa/web/configs/services"
