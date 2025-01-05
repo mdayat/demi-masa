@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,8 +19,8 @@ func InitApp() *chi.Mux {
 	router.Use(middleware.Recoverer)
 	router.Use(httprate.LimitByIP(100, 1*time.Minute))
 	options := cors.Options{
-		AllowedOrigins:   []string{env.WEB_BASE_URL},
-		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTION"},
+		AllowedOrigins:   strings.Split(env.ALLOWED_ORIGINS, ","),
+		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"},
 		AllowedHeaders:   []string{"User-Agent", "Content-Type", "Accept", "Accept-Encoding", "Accept-Language", "Cache-Control", "Connection", "Host", "Origin", "Referer", "Authorization"},
 		ExposedHeaders:   []string{"Content-Length", "Location"},
 		AllowCredentials: true,

@@ -22,7 +22,7 @@ func InitApp() *chi.Mux {
 	router.Use(httprate.LimitByIP(100, 1*time.Minute))
 	options := cors.Options{
 		AllowedOrigins:   []string{env.ASYNQMON_BASE_URL},
-		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTION"},
+		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"},
 		AllowedHeaders:   []string{"User-Agent", "Content-Type", "Accept", "Accept-Encoding", "Accept-Language", "Cache-Control", "Connection", "Host", "Origin", "Referer", "Authorization"},
 		ExposedHeaders:   []string{"Content-Length", "Location"},
 		AllowCredentials: true,

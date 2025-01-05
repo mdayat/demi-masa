@@ -14,7 +14,7 @@ var (
 	TRIPAY_MERCHANT_CODE string
 	TRIPAY_API_KEY       string
 	TRIPAY_PRIVATE_KEY   string
-	WEB_BASE_URL         string
+	ALLOWED_ORIGINS      string
 )
 
 func Init() error {
@@ -30,7 +30,7 @@ func Init() error {
 	TRIPAY_MERCHANT_CODE = os.Getenv("TRIPAY_MERCHANT_CODE")
 	TRIPAY_API_KEY = os.Getenv("TRIPAY_API_KEY")
 	TRIPAY_PRIVATE_KEY = os.Getenv("TRIPAY_PRIVATE_KEY")
-	WEB_BASE_URL = os.Getenv("WEB_BASE_URL")
+	ALLOWED_ORIGINS = os.Getenv("ALLOWED_ORIGINS")
 
 	return nil
 }
