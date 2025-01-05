@@ -13,7 +13,8 @@ var (
 )
 
 func InitFirebase(ctx context.Context) error {
-	FirebaseApp, err := firebase.NewApp(ctx, nil)
+	var err error
+	FirebaseApp, err = firebase.NewApp(ctx, nil)
 	if err != nil {
 		return err
 	}

@@ -13,7 +13,8 @@ var (
 )
 
 func InitDB(ctx context.Context, dbURL string) (*pgxpool.Pool, error) {
-	DB, err := pgxpool.New(ctx, dbURL)
+	var err error
+	DB, err = pgxpool.New(ctx, dbURL)
 	if err != nil {
 		return nil, err
 	}
