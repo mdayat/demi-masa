@@ -39,16 +39,15 @@ func NewUserDowngradeTask(payload UserDowngradePayload) (*asynq.Task, error) {
 	), nil
 }
 
+func MakePrayerReminderTaskID(userID string, prayerName string) string {
+	return fmt.Sprintf("%s:%s", userID, prayerName)
+}
+
 type PrayerReminderPayload struct {
 	UserID         string
 	PrayerName     string
 	PrayerUnixTime int64
 	IsLastDay      bool
-	Day            int
-}
-
-func PrayerReminderTaskID(userID string, prayerName string, day int) string {
-	return fmt.Sprintf("%s:%s:%d", userID, prayerName, day)
 }
 
 func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
@@ -60,19 +59,18 @@ func NewPrayerReminderTask(payload PrayerReminderPayload) (*asynq.Task, error) {
 	return asynq.NewTask(
 		TypePrayerReminder,
 		bytes,
-		asynq.TaskID(PrayerReminderTaskID(payload.UserID, payload.PrayerName, payload.Day)),
+		asynq.TaskID(MakePrayerReminderTaskID(payload.UserID, payload.PrayerName)),
 		asynq.MaxRetry(3),
 	), nil
+}
+
+func MakeLastPrayerReminderTaskID(userID string, prayerName string) string {
+	return fmt.Sprintf("%s:%s:last", userID, prayerName)
 }
 
 type LastPrayerReminderPayload struct {
 	UserID     string
 	PrayerName string
-	Day        int
-}
-
-func LastPrayerReminderTaskID(userID string, prayerName string, day int) string {
-	return fmt.Sprintf("%s:%s:%d:last", userID, prayerName, day)
 }
 
 func NewLastPrayerReminderTask(payload LastPrayerReminderPayload) (*asynq.Task, error) {
@@ -84,9 +82,13 @@ func NewLastPrayerReminderTask(payload LastPrayerReminderPayload) (*asynq.Task, 
 	return asynq.NewTask(
 		TypeLastPrayerReminder,
 		bytes,
-		asynq.TaskID(LastPrayerReminderTaskID(payload.UserID, payload.PrayerName, payload.Day)),
+		asynq.TaskID(MakeLastPrayerReminderTaskID(payload.UserID, payload.PrayerName)),
 		asynq.MaxRetry(3),
 	), nil
+}
+
+func MakePrayerRenewalTaskID(timeZone string) string {
+	return fmt.Sprintf("%s:%s", TypePrayerRenewal, timeZone)
 }
 
 type PrayerRenewalTask struct {
@@ -99,13 +101,36 @@ func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
 		return nil, errors.Wrap(err, "failed to marshal prayer renewal task payload")
 	}
 
-	return asynq.NewTask(TypePrayerRenewal, bytes, asynq.MaxRetry(3)), nil
+	return asynq.NewTask(
+		TypePrayerRenewal,
+		bytes,
+		asynq.TaskID(MakePrayerRenewalTaskID(payload.TimeZone)),
+		asynq.MaxRetry(3),
+	), nil
+}
+
+func MakeTaskRemovalTaskID() string {
+	return TypeTaskRemoval
 }
 
 func NewTaskRemovalTask() (*asynq.Task, error) {
-	return asynq.NewTask(TypeTaskRemoval, nil, asynq.MaxRetry(3)), nil
+	return asynq.NewTask(
+		TypeTaskRemoval,
+		nil,
+		asynq.TaskID(MakeTaskRemovalTaskID()),
+		asynq.MaxRetry(3),
+	), nil
+}
+
+func MakePrayerUpdateTaskID() string {
+	return TypePrayerUpdate
 }
 
 func NewPrayerUpdateTask() (*asynq.Task, error) {
-	return asynq.NewTask(TypePrayerUpdate, nil, asynq.MaxRetry(3)), nil
+	return asynq.NewTask(
+		TypePrayerUpdate,
+		nil,
+		asynq.TaskID(MakePrayerUpdateTaskID()),
+		asynq.MaxRetry(3),
+	), nil
 }
