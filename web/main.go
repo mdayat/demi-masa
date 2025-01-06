@@ -38,9 +38,14 @@ func main() {
 		logger.Fatal().Err(err).Send()
 	}
 
-	services.InitRedis(env.REDIS_URL)
+	redisClient := services.InitRedis(env.REDIS_URL)
+	defer redisClient.Close()
+
+	asynqClient, asynqInspector := services.InitAsynq(env.REDIS_URL)
+	defer asynqClient.Close()
+	defer asynqInspector.Close()
+
 	services.InitTwilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN)
-	services.InitAsynq(env.REDIS_URL)
 
 	app := internal.InitApp()
 	err = http.ListenAndServe(":8080", app)

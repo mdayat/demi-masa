@@ -141,6 +141,8 @@ github.com/mattn/go-isatty v0.0.19 h1:JITubQf0MOLdlGRuRq+jtsDlekdYPia9ZFsB8h/APP
 github.com/mattn/go-isatty v0.0.19/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mdayat/demi-masa/pkg v0.0.0-20241231115346-039248064e06 h1:FykVVw3kzD8U0yFqFYPlw3puipeX+WOvPcYqFL8XgT0=
 github.com/mdayat/demi-masa/pkg v0.0.0-20241231115346-039248064e06/go.mod h1:ultcLRZbrmedS5jPshgvFnChhuWU5pXiLOBkJbupi1M=
+github.com/mdayat/demi-masa/pkg v0.0.0-20250105180755-39520bc20147 h1:Go08VVUm2Xkdt2XMJwM0818/8H9LK87NrnqG6dUMTPc=
+github.com/mdayat/demi-masa/pkg v0.0.0-20250105180755-39520bc20147/go.mod h1:ultcLRZbrmedS5jPshgvFnChhuWU5pXiLOBkJbupi1M=
 github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyuac5Z2hdY=
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=

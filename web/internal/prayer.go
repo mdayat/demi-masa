@@ -108,7 +108,7 @@ func getUsedPrayers(
 	now := time.Now().In(location)
 	currentDay := now.Day()
 	currentUnixTime := now.Unix()
-	isLastDay := prayer.IsLastDay(&now)
+	isLastDay := prayer.IsLastDay(now)
 
 	todayPrayer := prayerCalendar[currentDay-1]
 	subuhPrayer := todayPrayer[0]
@@ -306,11 +306,11 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 
 	prayerTime := time.Unix(body.PrayerUnixTime, 0).In(location)
 	prayerDay := prayerTime.Day()
-	isLastDayPrayer := prayer.IsLastDay(&prayerTime)
-	isPenultimateDayPrayer := prayer.IsPenultimateDay(&prayerTime)
+	isLastDayPrayer := prayer.IsLastDay(prayerTime)
+	isPenultimateDayPrayer := prayer.IsPenultimateDay(prayerTime)
 
 	checkedTime := time.Unix(body.CheckedAt, 0).In(location)
-	isCheckedAtLastDay := prayer.IsLastDay(&checkedTime)
+	isCheckedAtLastDay := prayer.IsLastDay(checkedTime)
 
 	var usedPrayers prayer.Prayers
 	if isPenultimateDayPrayer && isCheckedAtLastDay && body.PrayerName != prayer.IsyaPrayerName {
@@ -387,7 +387,7 @@ func updatePrayerHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	userID := fmt.Sprintf("%s", ctx.Value("userID"))
-	asynqTaskID := task.LastPrayerReminderTaskID(userID, body.PrayerName, prayerTime.Day())
+	asynqTaskID := task.MakeLastPrayerReminderTaskID(userID, body.PrayerName)
 
 	if body.AccountType == repository.AccountTypePREMIUM {
 		err := services.AsynqInspector.DeleteTask(task.DefaultQueue, asynqTaskID)
