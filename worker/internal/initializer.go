@@ -27,6 +27,20 @@ func makeAladhanURL(year, month int, timeZone string) string {
 }
 
 func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
+	prayerRenewalTaskID := task.MakePrayerRenewalTaskID(location.String())
+	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerRenewalTaskID)
+	if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
+		return errors.Wrap(err, "failed to get prayer renewal task info by id")
+	}
+
+	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
+		return err
+	}
+
+	if err == nil {
+		return nil
+	}
+
 	now := time.Now().In(location)
 	year := now.Year()
 	month, err := strconv.Atoi(fmt.Sprintf("%d", now.Month()))
@@ -62,7 +76,7 @@ func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
 		return errors.Wrap(err, "failed to marshal last day prayer of parsed aladhan prayer calendar")
 	}
 
-	isLastDay := prayer.IsLastDay(&now)
+	isLastDay := prayer.IsLastDay(now)
 	if isLastDay {
 		if month == 12 {
 			year++
@@ -144,8 +158,8 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 	now := time.Now().In(location)
 	currentDay := now.Day()
 
-	isLastDay := prayer.IsLastDay(&now)
-	isPenultimateDay := prayer.IsPenultimateDay(&now)
+	isLastDay := prayer.IsLastDay(now)
+	isPenultimateDay := prayer.IsPenultimateDay(now)
 	isyaPrayer := prayerCalendar[currentDay-1][5]
 
 	if isLastDay {
@@ -173,13 +187,26 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 			nextPrayer = prayer.GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
 		}
 
+		prayerReminderTaskID := task.MakePrayerReminderTaskID(user.ID, nextPrayer.Name)
+		_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerReminderTaskID)
+		if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
+			return errors.Wrap(err, "failed to get prayer reminder task info by id")
+		}
+
+		if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
+			return err
+		}
+
+		if err == nil {
+			continue
+		}
+
 		nextPrayerTime := time.Unix(nextPrayer.UnixTime, 0).In(location)
 		newAsynqTask, err := task.NewPrayerReminderTask(task.PrayerReminderPayload{
 			UserID:         user.ID,
 			PrayerName:     nextPrayer.Name,
 			PrayerUnixTime: nextPrayer.UnixTime,
 			IsLastDay:      isNextPrayerLastDay,
-			Day:            nextPrayerTime.Day(),
 		})
 
 		if err != nil {
@@ -196,6 +223,20 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 }
 
 func InitPrayerUpdateTask(location *time.Location) error {
+	prayerUpdateTaskID := task.MakePrayerUpdateTaskID()
+	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerUpdateTaskID)
+	if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
+		return errors.Wrap(err, "failed to get prayer update task info by id")
+	}
+
+	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
+		return err
+	}
+
+	if err == nil {
+		return nil
+	}
+
 	now := time.Now().In(location)
 	sixAMToday := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, now.Location())
 
@@ -221,6 +262,20 @@ func InitPrayerUpdateTask(location *time.Location) error {
 }
 
 func InitTaskRemovalTask(location *time.Location) error {
+	taskRemovalTaskID := task.MakeTaskRemovalTaskID()
+	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, taskRemovalTaskID)
+	if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
+		return errors.Wrap(err, "failed to get task removal task info by id")
+	}
+
+	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
+		return err
+	}
+
+	if err == nil {
+		return nil
+	}
+
 	now := time.Now().In(location)
 	tomorrow := now.AddDate(0, 0, 1).In(location)
 	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())

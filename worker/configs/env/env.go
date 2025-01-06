@@ -11,6 +11,7 @@ var (
 	TWILIO_ACCOUNT_SID string
 	TWILIO_AUTH_TOKEN  string
 	REDIS_URL          string
+	TWILIO_SENDER      string
 )
 
 func Init() error {
@@ -23,6 +24,7 @@ func Init() error {
 	TWILIO_ACCOUNT_SID = os.Getenv("TWILIO_ACCOUNT_SID")
 	TWILIO_AUTH_TOKEN = os.Getenv("TWILIO_AUTH_TOKEN")
 	REDIS_URL = os.Getenv("REDIS_URL")
+	TWILIO_SENDER = os.Getenv("TWILIO_SENDER")
 
 	return nil
 }

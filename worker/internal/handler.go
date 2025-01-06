@@ -70,8 +70,8 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 	}
 
 	prayerTime := time.Unix(payload.PrayerUnixTime, 0).In(location)
-	isLastDay := prayer.IsLastDay(&prayerTime)
-	isPenultimateDay := prayer.IsPenultimateDay(&prayerTime)
+	isLastDay := prayer.IsLastDay(prayerTime)
+	isPenultimateDay := prayer.IsPenultimateDay(prayerTime)
 
 	var lastDayPrayer prayer.Prayers
 	if payload.IsLastDay && payload.PrayerName != prayer.IsyaPrayerName {
@@ -103,7 +103,6 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		PrayerName:     nextPrayer.Name,
 		PrayerUnixTime: nextPrayer.UnixTime,
 		IsLastDay:      isNextPrayerLastDay,
-		Day:            nextPrayerTime.Day(),
 	})
 
 	if err != nil {
@@ -138,7 +137,6 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		newAsynqTask, err = task.NewLastPrayerReminderTask(task.LastPrayerReminderPayload{
 			UserID:     payload.UserID,
 			PrayerName: payload.PrayerName,
-			Day:        prayerTime.Day(),
 		})
 
 		if err != nil {

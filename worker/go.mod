@@ -6,7 +6,7 @@ require (
 	github.com/hibiken/asynq v0.25.1
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/joho/godotenv v1.5.1
-	github.com/mdayat/demi-masa/pkg v0.0.0-20241231115346-039248064e06
+	github.com/mdayat/demi-masa/pkg v0.0.0-20250105180755-39520bc20147
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/rs/zerolog v1.33.0

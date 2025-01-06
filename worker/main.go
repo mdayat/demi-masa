@@ -36,9 +36,14 @@ func main() {
 	}
 	defer db.Close()
 
-	services.InitRedis(env.REDIS_URL)
+	redisClient := services.InitRedis(env.REDIS_URL)
+	defer redisClient.Close()
+
+	asynqClient, asynqInspector := services.InitAsynq(env.REDIS_URL)
+	defer asynqClient.Close()
+	defer asynqInspector.Close()
+
 	services.InitTwilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN)
-	services.InitAsynq(env.REDIS_URL)
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, 3)
