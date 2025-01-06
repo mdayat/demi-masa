@@ -6,6 +6,8 @@ import (
 	"github.com/mdayat/demi-masa/worker/configs/env"
 )
 
+var TypeInitialTask = "initial"
+
 func InitApp() (*asynq.Server, *asynq.ServeMux) {
 	asynqServer := asynq.NewServer(
 		asynq.RedisClientOpt{Addr: env.REDIS_URL},
@@ -14,6 +16,7 @@ func InitApp() (*asynq.Server, *asynq.ServeMux) {
 
 	mux := asynq.NewServeMux()
 	mux.Use(logger)
+	mux.HandleFunc(TypeInitialTask, handleInitialTask)
 	mux.HandleFunc(task.TypeUserDowngrade, handleUserDowngrade)
 	mux.HandleFunc(task.TypePrayerReminder, handlePrayerReminder)
 	mux.HandleFunc(task.TypeLastPrayerReminder, handleLastPrayerReminder)

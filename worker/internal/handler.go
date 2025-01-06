@@ -19,6 +19,10 @@ import (
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
+func handleInitialTask(ctx context.Context, _ *asynq.Task) error {
+	return nil
+}
+
 func handleUserDowngrade(ctx context.Context, asynqTask *asynq.Task) error {
 	start := time.Now()
 	logWithCtx := log.Ctx(ctx).With().Logger()

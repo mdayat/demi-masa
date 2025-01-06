@@ -8,6 +8,7 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/hibiken/asynq"
 	"github.com/mdayat/demi-masa/worker/configs/env"
 	"github.com/mdayat/demi-masa/worker/configs/services"
 	"github.com/mdayat/demi-masa/worker/internal"
@@ -44,6 +45,7 @@ func main() {
 	defer asynqInspector.Close()
 
 	services.InitTwilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN)
+	services.AsynqClient.Enqueue(asynq.NewTask(internal.TypeInitialTask, nil))
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, 3)

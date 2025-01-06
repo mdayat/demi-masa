@@ -29,12 +29,12 @@ func makeAladhanURL(year, month int, timeZone string) string {
 func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
 	prayerRenewalTaskID := task.MakePrayerRenewalTaskID(location.String())
 	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerRenewalTaskID)
-	if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
-		return errors.Wrap(err, "failed to get prayer renewal task info by id")
-	}
-
 	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
 		return err
+	}
+
+	if err != nil && !errors.Is(err, asynq.ErrTaskNotFound) {
+		return errors.Wrap(err, "failed to get prayer renewal task info by id")
 	}
 
 	if err == nil {
@@ -189,12 +189,12 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 
 		prayerReminderTaskID := task.MakePrayerReminderTaskID(user.ID, nextPrayer.Name)
 		_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerReminderTaskID)
-		if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
-			return errors.Wrap(err, "failed to get prayer reminder task info by id")
-		}
-
 		if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
 			return err
+		}
+
+		if err != nil && !errors.Is(err, asynq.ErrTaskNotFound) {
+			return errors.Wrap(err, "failed to get prayer reminder task info by id")
 		}
 
 		if err == nil {
@@ -225,12 +225,12 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 func InitPrayerUpdateTask(location *time.Location) error {
 	prayerUpdateTaskID := task.MakePrayerUpdateTaskID()
 	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerUpdateTaskID)
-	if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
-		return errors.Wrap(err, "failed to get prayer update task info by id")
-	}
-
 	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
 		return err
+	}
+
+	if err != nil && !errors.Is(err, asynq.ErrTaskNotFound) {
+		return errors.Wrap(err, "failed to get prayer update task info by id")
 	}
 
 	if err == nil {
@@ -264,12 +264,12 @@ func InitPrayerUpdateTask(location *time.Location) error {
 func InitTaskRemovalTask(location *time.Location) error {
 	taskRemovalTaskID := task.MakeTaskRemovalTaskID()
 	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, taskRemovalTaskID)
-	if err != nil && !errors.Is(err, asynq.ErrQueueNotFound) {
-		return errors.Wrap(err, "failed to get task removal task info by id")
-	}
-
 	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
 		return err
+	}
+
+	if err != nil && !errors.Is(err, asynq.ErrTaskNotFound) {
+		return errors.Wrap(err, "failed to get task removal task info by id")
 	}
 
 	if err == nil {
