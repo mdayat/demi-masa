@@ -193,48 +193,82 @@ func GetAladhanPrayerCalendar(url string) ([]aladhanPrayerCalendar, error) {
 	return body, nil
 }
 
-func GetNextPrayer(
+func GetNextPrayerByTime(
 	prayerCalendar PrayerCalendar,
-	lastPrayers Prayers,
+	lastDayPrayers Prayers,
 	currentDay int,
-	currentTimestamp int64,
-) Prayer {
-	var nextPrayer Prayer
-
-	if lastPrayers == nil {
-		todayPrayer := prayerCalendar[currentDay-1]
-		for _, prayer := range todayPrayer {
-			if prayer.Name == SunriseTimeName {
-				continue
-			}
-
-			if prayer.UnixTime > currentTimestamp {
-				nextPrayer = prayer
-				break
-			}
-		}
-
-		if nextPrayer.Name == "" {
-			currentDay++
-			tomorrowPrayer := prayerCalendar[currentDay-1]
-			nextPrayer = tomorrowPrayer[0]
-		}
+	currentUnixTime int64,
+) (nextPrayer Prayer) {
+	var todayPrayers Prayers
+	if lastDayPrayers == nil {
+		todayPrayers = prayerCalendar[currentDay-1]
 	} else {
-		for _, prayer := range lastPrayers {
-			if prayer.Name == SunriseTimeName {
-				continue
-			}
+		todayPrayers = lastDayPrayers
+	}
 
-			if prayer.UnixTime > currentTimestamp {
-				nextPrayer = prayer
-				break
-			}
+	for _, prayer := range todayPrayers {
+		if prayer.Name == SunriseTimeName {
+			continue
 		}
 
-		if nextPrayer.Name == "" {
-			tomorrowPrayer := prayerCalendar[0]
-			nextPrayer = tomorrowPrayer[0]
+		if prayer.UnixTime > currentUnixTime {
+			nextPrayer = prayer
+			break
 		}
+	}
+
+	if nextPrayer.Name != "" {
+		return nextPrayer
+	}
+
+	var tomorrowPrayers Prayers
+	if lastDayPrayers == nil {
+		currentDay++
+		tomorrowPrayers = prayerCalendar[currentDay-1]
+	} else {
+		tomorrowPrayers = prayerCalendar[0]
+	}
+
+	nextPrayer = tomorrowPrayers[0]
+	return nextPrayer
+}
+
+func GetNextPrayerByName(
+	prayerCalendar PrayerCalendar,
+	lastDayPrayers Prayers,
+	currentDay int,
+	currentPrayerName string,
+) (nextPrayer Prayer) {
+	var todayPrayers Prayers
+	if lastDayPrayers == nil {
+		todayPrayers = prayerCalendar[currentDay-1]
+	} else {
+		todayPrayers = lastDayPrayers
+	}
+
+	switch currentPrayerName {
+	case SubuhPrayerName:
+		nextPrayer = todayPrayers[2]
+
+	case ZuhurPrayerName:
+		nextPrayer = todayPrayers[3]
+
+	case AsarPrayerName:
+		nextPrayer = todayPrayers[4]
+
+	case MagribPrayerName:
+		nextPrayer = todayPrayers[5]
+
+	default:
+		var tomorrowPrayers Prayers
+		if lastDayPrayers == nil {
+			currentDay++
+			tomorrowPrayers = prayerCalendar[currentDay-1]
+		} else {
+			tomorrowPrayers = prayerCalendar[0]
+		}
+
+		nextPrayer = tomorrowPrayers[0]
 	}
 
 	return nextPrayer
