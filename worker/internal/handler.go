@@ -97,7 +97,7 @@ func handlePrayerReminder(ctx context.Context, asynqTask *asynq.Task) error {
 		prayerDay = 1
 	}
 
-	nextPrayer := prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, prayerDay, payload.PrayerUnixTime)
+	nextPrayer := prayer.GetNextPrayerByName(prayerCalendar, lastDayPrayer, prayerDay, payload.PrayerName)
 	now := time.Now().In(location)
 	nowUnixTime := now.Unix()
 
@@ -290,7 +290,7 @@ func handlePrayerRenewal(ctx context.Context, asynqTask *asynq.Task) error {
 		return err
 	})
 
-	newAsynqTask, err := task.NewPrayerRenewalTask(task.PrayerRenewalTask{TimeZone: payload.TimeZone})
+	newAsynqTask, err := task.NewPrayerRenewalTask(task.PrayerRenewalTask{TimeZone: payload.TimeZone, Month: month})
 	if err != nil {
 		logWithCtx.Error().Err(err).Caller().Msg("failed to create prayer renewal task")
 		return err
@@ -324,10 +324,11 @@ func handleTaskRemoval(ctx context.Context, _ *asynq.Task) error {
 	}
 
 	now := time.Now().In(location)
-	tomorrow := now.AddDate(0, 0, 1).In(location)
+	tomorrow := now.AddDate(0, 0, 1).In(now.Location())
 	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())
+	day := midnight.Day()
 
-	newAsynqTask, err := task.NewTaskRemovalTask()
+	newAsynqTask, err := task.NewTaskRemovalTask(day)
 	if err != nil {
 		logWithCtx.Error().Err(err).Caller().Msg("failed to create task removal task")
 		return err
@@ -358,22 +359,22 @@ func handlePrayerUpdate(ctx context.Context, _ *asynq.Task) error {
 		Month: int16(now.Month()),
 		Year:  int16(now.Year()),
 	})
-
 	if err != nil {
 		logWithCtx.Error().Err(err).Caller().Msg("failed to update prayers status to missed")
 		return err
 	}
 
-	nextDay := now.Add(24 * time.Hour).In(now.Location())
-	nextDayAtSix := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 6, 0, 0, 0, nextDay.Location())
+	tomorrow := now.AddDate(0, 0, 1).In(now.Location())
+	tomorrowAtSix := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 6, 0, 0, 0, tomorrow.Location())
+	day := tomorrowAtSix.Day()
 
-	newAsynqTask, err := task.NewPrayerUpdateTask()
+	newAsynqTask, err := task.NewPrayerUpdateTask(day)
 	if err != nil {
 		logWithCtx.Error().Err(err).Caller().Msg("failed to create prayer update task")
 		return err
 	}
 
-	_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(nextDayAtSix.Sub(now)))
+	_, err = services.AsynqClient.Enqueue(newAsynqTask, asynq.ProcessIn(tomorrowAtSix.Sub(now)))
 	if err != nil {
 		logWithCtx.Error().Err(err).Caller().Msg("failed to enqueue prayer update task")
 		return err

@@ -27,8 +27,26 @@ func makeAladhanURL(year, month int, timeZone string) string {
 }
 
 func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
-	prayerRenewalTaskID := task.MakePrayerRenewalTaskID(location.String())
-	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerRenewalTaskID)
+	now := time.Now().In(location)
+	isLastDay := prayer.IsLastDay(now)
+
+	month, err := strconv.Atoi(fmt.Sprintf("%d", now.Month()))
+	if err != nil {
+		return errors.Wrap(err, "failed to convert string to integer")
+	}
+
+	year := now.Year()
+	if isLastDay {
+		if month == 12 {
+			year++
+			month = 1
+		} else {
+			month++
+		}
+	}
+
+	prayerRenewalTaskID := task.MakePrayerRenewalTaskID(location.String(), month)
+	_, err = services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerRenewalTaskID)
 	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
 		return err
 	}
@@ -39,13 +57,6 @@ func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
 
 	if err == nil {
 		return nil
-	}
-
-	now := time.Now().In(location)
-	year := now.Year()
-	month, err := strconv.Atoi(fmt.Sprintf("%d", now.Month()))
-	if err != nil {
-		return errors.Wrap(err, "failed to convert string to integer")
 	}
 
 	timeZone := location.String()
@@ -76,15 +87,7 @@ func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
 		return errors.Wrap(err, "failed to marshal last day prayer of parsed aladhan prayer calendar")
 	}
 
-	isLastDay := prayer.IsLastDay(now)
 	if isLastDay {
-		if month == 12 {
-			year++
-			month = 1
-		} else {
-			month++
-		}
-
 		prayerCalendar, err = prayer.GetAladhanPrayerCalendar(makeAladhanURL(year, month, timeZone))
 		if err != nil {
 			return errors.Wrap(err, "failed to get aladhan prayer calendar")
@@ -115,7 +118,7 @@ func InitPrayerCalendar(ctx context.Context, location *time.Location) error {
 		return errors.Wrap(err, "failed to execute redis tx to set prayer calendar and last day prayer")
 	}
 
-	newAsynqTask, err := task.NewPrayerRenewalTask(task.PrayerRenewalTask{TimeZone: timeZone})
+	newAsynqTask, err := task.NewPrayerRenewalTask(task.PrayerRenewalTask{TimeZone: timeZone, Month: month})
 	if err != nil {
 		return errors.Wrap(err, "failed to create prayer renewal task")
 	}
@@ -178,13 +181,13 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 
 		var nextPrayer prayer.Prayer
 		if isLastDay && currentUnixTime < isyaPrayer.UnixTime {
-			nextPrayer = prayer.GetNextPrayer(prayerCalendar, lastDayPrayer, currentDay, currentUnixTime)
+			nextPrayer = prayer.GetNextPrayerByTime(prayerCalendar, lastDayPrayer, currentDay, currentUnixTime)
 		} else {
 			if isLastDay && currentUnixTime > isyaPrayer.UnixTime {
 				currentDay = 1
 			}
 
-			nextPrayer = prayer.GetNextPrayer(prayerCalendar, nil, currentDay, currentUnixTime)
+			nextPrayer = prayer.GetNextPrayerByTime(prayerCalendar, nil, currentDay, currentUnixTime)
 		}
 
 		prayerReminderTaskID := task.MakePrayerReminderTaskID(user.ID, nextPrayer.Name)
@@ -223,7 +226,21 @@ func InitPrayerReminder(ctx context.Context, location *time.Location) error {
 }
 
 func InitPrayerUpdateTask(location *time.Location) error {
-	prayerUpdateTaskID := task.MakePrayerUpdateTaskID()
+	now := time.Now().In(location)
+	todayAtSix := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, now.Location())
+
+	var targettedTime time.Time
+	if now.Before(todayAtSix) {
+		targettedTime = todayAtSix
+	} else {
+		tomorrow := now.AddDate(0, 0, 1).In(now.Location())
+		tomorrowAtSix := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 6, 0, 0, 0, tomorrow.Location())
+		targettedTime = tomorrowAtSix
+	}
+
+	day := targettedTime.Day()
+	prayerUpdateTaskID := task.MakePrayerUpdateTaskID(day)
+
 	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, prayerUpdateTaskID)
 	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
 		return err
@@ -237,23 +254,12 @@ func InitPrayerUpdateTask(location *time.Location) error {
 		return nil
 	}
 
-	now := time.Now().In(location)
-	sixAMToday := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, now.Location())
-
-	var targetTime time.Time
-	if now.Before(sixAMToday) {
-		targetTime = sixAMToday
-	} else {
-		nextDay := now.Add(24 * time.Hour).In(now.Location())
-		targetTime = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 6, 0, 0, 0, nextDay.Location())
-	}
-
-	asynqTask, err := task.NewPrayerUpdateTask()
+	asynqTask, err := task.NewPrayerUpdateTask(day)
 	if err != nil {
 		return errors.Wrap(err, "failed to create prayer update task")
 	}
 
-	_, err = services.AsynqClient.Enqueue(asynqTask, asynq.ProcessIn(targetTime.Sub(now)))
+	_, err = services.AsynqClient.Enqueue(asynqTask, asynq.ProcessIn(targettedTime.Sub(now)))
 	if err != nil {
 		return errors.Wrap(err, "failed to enqueue prayer update task")
 	}
@@ -262,7 +268,12 @@ func InitPrayerUpdateTask(location *time.Location) error {
 }
 
 func InitTaskRemovalTask(location *time.Location) error {
-	taskRemovalTaskID := task.MakeTaskRemovalTaskID()
+	now := time.Now().In(location)
+	tomorrow := now.AddDate(0, 0, 1).In(location)
+	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())
+	day := midnight.Day()
+
+	taskRemovalTaskID := task.MakeTaskRemovalTaskID(day)
 	_, err := services.AsynqInspector.GetTaskInfo(task.DefaultQueue, taskRemovalTaskID)
 	if err != nil && errors.Is(err, asynq.ErrQueueNotFound) {
 		return err
@@ -276,11 +287,7 @@ func InitTaskRemovalTask(location *time.Location) error {
 		return nil
 	}
 
-	now := time.Now().In(location)
-	tomorrow := now.AddDate(0, 0, 1).In(location)
-	midnight := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())
-
-	asynqTask, err := task.NewTaskRemovalTask()
+	asynqTask, err := task.NewTaskRemovalTask(day)
 	if err != nil {
 		return errors.Wrap(err, "failed to create task removal task")
 	}
