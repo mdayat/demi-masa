@@ -87,13 +87,13 @@ func NewLastPrayerReminderTask(payload LastPrayerReminderPayload) (*asynq.Task, 
 	), nil
 }
 
-func MakePrayerRenewalTaskID(timeZone string, day int) string {
-	return fmt.Sprintf("%s:%s:%d", TypePrayerRenewal, timeZone, day)
+func MakePrayerRenewalTaskID(timeZone string, month int) string {
+	return fmt.Sprintf("%s:%s:%d", TypePrayerRenewal, timeZone, month)
 }
 
 type PrayerRenewalTask struct {
 	TimeZone string
-	Day      int
+	Month    int
 }
 
 func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
@@ -105,7 +105,7 @@ func NewPrayerRenewalTask(payload PrayerRenewalTask) (*asynq.Task, error) {
 	return asynq.NewTask(
 		TypePrayerRenewal,
 		bytes,
-		asynq.TaskID(MakePrayerRenewalTaskID(payload.TimeZone, payload.Day)),
+		asynq.TaskID(MakePrayerRenewalTaskID(payload.TimeZone, payload.Month)),
 		asynq.MaxRetry(3),
 	), nil
 }
